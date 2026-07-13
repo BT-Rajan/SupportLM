@@ -5,8 +5,8 @@
 
 ## Current phase
 
-**Phase 1 — Round 6 complete (2.2: status lifecycle). 2.0 Tenant
-Provisioning done. Next: 3.1 (request-scoping middleware).**
+**Phase 1 — Round 7 complete (3.1: request-scoping dependency).
+Next: 3.2 (retrofit existing queries/routes to use it).**
 
 ## Phase progress
 
@@ -171,6 +171,47 @@ Provisioning done. Next: 3.1 (request-scoping middleware).**
 - **2.0 Tenant Provisioning is now fully done (2.1–2.2).**
 - Next up: 3.1 — request-scoping middleware/dependency (resolves
   `tenant_id` per request; decide subdomain vs path param vs API key).
+
+### Round 7 — completed 3.1
+- Wrote `app/core/tenant_scope.py`, the request-scoping mechanism the
+  WBS calls for. Decided the resolution source (WBS 3.1 required this
+  be decided, not deferred): **path param** (`{tenant_slug}` in the
+  route path), not subdomain or API key. Subdomain routing needs
+  DNS/reverse-proxy vhost config that doesn't exist in this deployment
+  and is infra work explicitly out of scope (`MASTER_PROMPT.md` Section
+  2.8). API keys are exactly what Phase 2 introduces ("API keys for
+  programmatic access") — building a per-tenant key system now would
+  duplicate that a phase early.
+- Two dependencies, matching the app's two caller types:
+  - `resolve_tenant(tenant_slug)` — anonymous routes (chat widget).
+    slug -> tenant_id, 404 unknown slug, 403 suspended (reuses 2.2's
+    `enforce_active`).
+  - `resolve_tenant_for_admin(tenant_slug, admin_id)` — admin-session
+    routes. Same checks, plus 403 unless the logged-in admin is linked
+    to that tenant via `tenant_user`. Needed because 2.1 made "one
+    admin owns multiple tenants" valid, so `require_admin` alone can't
+    imply which tenant a request means — without this check, admin A
+    could read tenant B's data just by typing B's slug into the URL.
+- Scope note, same pattern as round 6: this round builds and validates
+  the mechanism only. It is not yet wired into any real route — that
+  audit-every-query work is 3.2, which the WBS places after 3.1.
+- Validated against a real MariaDB instance (full 001->005 chain) using
+  a throwaway FastAPI app + TestClient exercising both dependencies:
+  confirmed active-tenant success (200), unknown slug (404), suspended
+  tenant (403) for the anonymous path; and for the admin path, a linked
+  owner succeeds (200), an admin with no link to that tenant is blocked
+  (403), no session cookie is blocked (401), an unknown slug 404s, and
+  a suspended tenant blocks even an admin who *is* linked to it (403,
+  suspension checked before membership) — confirming suspension always
+  wins regardless of who's asking.
+- Full regression pass: `pytest tests/ -q` still 6/6 (no existing tests
+  touched this round; nothing to break since nothing was wired in yet).
+- Next up: 3.2 — audit and update every existing query in
+  `app/services/*` and `app/api/*` to filter by tenant_id, wiring in
+  `resolve_tenant`/`resolve_tenant_for_admin` on the actual routes
+  (chat, documents, categories, admin dashboard). This is the round
+  most likely to reveal missed spots per the WBS's own warning — treat
+  it as a full checklist pass, not a quick one.
 
 ## Open decisions / things to confirm before Phase 1 starts
 
