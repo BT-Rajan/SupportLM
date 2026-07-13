@@ -5,7 +5,7 @@
 
 ## Current phase
 
-**Phase 1 — Round 1 in progress (1.1: tenant/org schema design).**
+**Phase 1 — Round 3 complete (1.3: backfill). Next: 1.4 (indexes).**
 
 ## Phase progress
 
@@ -61,6 +61,31 @@
 - Next up: 1.3 — backfill migration (default tenant + stamp existing
   rows + fold `company` into `tenant` + convert `tenant_id` to
   `NOT NULL`).
+
+### Round 3 — completed 1.3
+- Wrote `migrations/004_backfill_default_tenant.sql` — the one-time
+  backfill (explicitly NOT safe to re-run after it completes, unlike
+  001–003, since it drops `company` and tightens columns):
+  1. Creates a single default tenant, folding in `company`'s
+     name/profile_json if a `company` row exists.
+  2. Stamps every row in the 1.2-retrofitted tables with that
+     tenant's id.
+  3. Links every existing `admin_user` to the default tenant via
+     `tenant_user` as `role = 'owner'`. This wasn't explicit in the
+     WBS wording but follows directly from 1.1's "ownership assignable
+     from Phase 1" goal — without it no existing admin could pass a
+     tenant-scoped check once 3.0 lands.
+  4. Drops `company`.
+  5. Converts `tenant_id` to `NOT NULL` on all 8 tables.
+- Validated against MariaDB with two scenarios: (a) an "existing
+  production" DB seeded with a `company` row, two admins, and sample
+  document/conversation/category/agent rows — confirmed the tenant
+  absorbed `company`'s data, both admins got linked as owners, all
+  rows stamped with zero NULLs remaining, and columns are NOT NULL;
+  (b) a brand-new install with no `company` row and no admins at all —
+  confirmed it falls back to `'Default Tenant'` cleanly with no errors.
+- Next up: 1.4 — composite `(tenant_id, ...)` indexes for hot-path
+  queries (chunk search, document listing, conversation lookup).
 
 ## Open decisions / things to confirm before Phase 1 starts
 
