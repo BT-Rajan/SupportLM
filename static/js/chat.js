@@ -37,16 +37,33 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: question, conversation_id: conversationId }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        appendMessage("assistant", data.detail || "Something went wrong. Please try again.");
+
+      // Parse the body defensively: the server always returns JSON now,
+      // but if something upstream (proxy, unexpected route, etc.) ever
+      // returns plain text again, we still want to show *that* text
+      // instead of throwing and falling into the generic catch below.
+      const rawBody = await res.text();
+      let data = null;
+      try {
+        data = rawBody ? JSON.parse(rawBody) : null;
+      } catch (parseErr) {
+        appendMessage(
+          "assistant",
+          "Server error (" + res.status + "): " + (rawBody || "no response body").slice(0, 300)
+        );
         return;
       }
+
+      if (!res.ok) {
+        appendMessage("assistant", (data && data.detail) || "Request failed with status " + res.status + ".");
+        return;
+      }
+
       conversationId = data.conversation_id;
       appendMessage("assistant", data.answer);
       appendSources(data.sources);
     } catch (err) {
-      appendMessage("assistant", "Something went wrong. Please try again.");
+      appendMessage("assistant", "Network error: could not reach the server. " + (err && err.message ? err.message : ""));
     } finally {
       input.disabled = false;
       input.focus();
