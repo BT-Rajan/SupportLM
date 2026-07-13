@@ -42,6 +42,26 @@
   `tenant_user` confirmed.
 - Next up: 1.2 — retrofit `tenant_id` onto existing tables.
 
+### Round 2 — completed 1.2
+- Wrote `migrations/003_retrofit_tenant_id.sql`: adds a flat, nullable
+  `tenant_id` column (FK -> `tenant(id)` ON DELETE CASCADE) to
+  `document`, `document_chunk`, `embedding`, `category`, `conversation`,
+  `message`, `citation`, `agent` — one migration per proposal's
+  denormalize-not-join decision from 1.1.
+- Nullable is intentional: no tenant data exists to stamp rows with
+  yet. 1.3's backfill creates the default tenant, stamps every
+  existing row, then converts these columns to `NOT NULL`.
+- Composite `(tenant_id, ...)` indexes for hot-path queries are 1.4,
+  not this migration — each FK here only gets its own single-column
+  index for free.
+- Validated against a real MariaDB instance: 001 → 002 → 003 apply
+  cleanly on a fresh DB, migration 003 is idempotent (safe to re-run),
+  and every table's FK/column shape was inspected directly via
+  `SHOW CREATE TABLE`.
+- Next up: 1.3 — backfill migration (default tenant + stamp existing
+  rows + fold `company` into `tenant` + convert `tenant_id` to
+  `NOT NULL`).
+
 ## Open decisions / things to confirm before Phase 1 starts
 
 - Multi-tenant isolation strategy: separate DB schema per tenant vs.
