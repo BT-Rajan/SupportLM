@@ -1,0 +1,86 @@
+# SupportLM — Design System
+
+Canonical reference for every screen built from Phase 1 onward (admin,
+analytics, agent config, escalation console, customer chat). New screens
+extend this file if a component is missing — they don't invent one-off
+styles inline. Goal: the product should feel like it was built by one
+team with one set of rules, not a collection of per-page experiments.
+
+## Tokens (source of truth: `static/css/chat.css`)
+
+```css
+--ink: #16211d;          /* primary text */
+--muted: #64756e;        /* secondary text, timestamps, helper copy */
+--bg: #eaeeec;           /* page background */
+--surface: #ffffff;      /* card/panel background */
+--surface-alt: #f2f5f3;  /* recessed areas: message thread, inputs */
+--border: #dbe3de;
+
+--accent: #0e7c66;       /* primary actions, links, brand mark */
+--accent-ink: #0b5f4f;   /* hover/active state of accent */
+--accent-soft: #dcefe9;  /* tinted backgrounds: user bubbles, tags */
+
+--live: #22c55e;         /* status-online indicator only */
+
+--font-display: "Space Grotesk";  /* brand name, page titles, section headers */
+--font-body: "Inter";             /* body copy, form inputs, buttons */
+--font-mono: "IBM Plex Mono";     /* timestamps, IDs, status text, SR numbers */
+
+--radius: 14px;          /* default corner radius for cards/bubbles */
+```
+
+Semantic colors for state (add here when first needed, don't invent
+inline hex values in a component file):
+- Success: `--live` (#22c55e)
+- Error/danger: `#9c2b25` text on `#fdecec` background, `#f3c6c4` border
+  (already used for chat error bubbles — reuse exactly, don't create a
+  second red)
+- Warning: to be added in Phase 3 (draft/review states) — pick once,
+  document here, reuse everywhere.
+
+## Component patterns established so far
+
+- **Card/panel**: `surface` background, 1px `border`, `radius` corners,
+  soft layered shadow (see `.console` in chat.css for the exact shadow
+  values) — this is the base container for every panel in the product.
+- **Primary button**: `accent` background, white text, `radius`-scaled
+  corner (~12px for buttons), `accent-ink` on hover, scale-down (0.94–0.98)
+  on active press. No other button color for primary actions anywhere in
+  the product.
+- **Chip/tag**: `surface` background with `border`, or `accent-soft`
+  background with `accent-ink` text for a "tinted" tag (see `.ai-tag`,
+  `.chip`) — used for suggestions, status labels, categories.
+- **Mono utility text**: timestamps, IDs, ticket/SR numbers, and short
+  status strings always render in `--font-mono`, small size (~11px),
+  `--muted` or `--accent-ink` color. This is what visually distinguishes
+  "system/utility" text from conversational content across the whole
+  product — keep it consistent everywhere a new numeric/status field
+  shows up (SR numbers in Phase 6, cost figures in Phase 7, etc).
+- **Signature motif**: the clipped ticket-stub corner on assistant chat
+  bubbles (`.msg-assistant` in chat.css) is specific to chat messages
+  only — don't reuse the notch shape for unrelated cards; it means
+  "this came from the support/ticket system," not "generic panel."
+
+## Rules for new screens (admin dashboard, analytics, agent config, etc.)
+
+1. Pull in the same Google Fonts stack (Space Grotesk / Inter / IBM Plex
+   Mono) — don't default to system-ui for a new screen just because it's
+   "internal."
+2. Reuse the token variables directly; don't hardcode hex values in a new
+   CSS file. If a new page needs a new file, `:root` should still resolve
+   to the same values (share a `tokens.css` once there are 3+ stylesheets
+   — flag this refactor when it comes up rather than copy-pasting the
+   `:root` block a fourth time).
+3. Tables (needed from Phase 1 admin screens onward): header row
+   `surface-alt` background, `--font-mono` for numeric columns, `border`
+   between rows, no zebra-striping unless a screen genuinely needs it for
+   dense data (state that reasoning if you add it).
+4. Forms: same input styling as `.composer-input` (border, radius,
+   `surface-alt` background, `accent` border on focus) — one input style
+   for the whole product.
+5. Empty states: every list/table screen gets an empty-state pattern
+   analogous to `.welcome` in the chat UI — a short title, one line of
+   help text, and a primary action — not just a blank table.
+6. Accessibility floor carried forward to every new screen: visible
+   focus rings (`:focus-visible` block), `prefers-reduced-motion`
+   respected for any animation, semantic HTML over div-soup.
