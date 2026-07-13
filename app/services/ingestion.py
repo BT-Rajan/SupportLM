@@ -33,7 +33,7 @@ def ingest_document(document_id: int) -> None:
 
                 vector = embed_text(chunk.content)
                 cur.execute(
-                    """INSERT INTO embedding (chunk_id, model, dims, vector)
+                    """INSERT INTO embedding (chunk_id, model, dims, embedding_vector)
                        VALUES (%s, %s, %s, %s)""",
                     (chunk_id, "text-embedding-3-small", len(vector), json.dumps(vector)),
                 )

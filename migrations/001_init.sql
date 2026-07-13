@@ -2,6 +2,23 @@
 -- Single-tenant per install: no company_id scoping needed across tables,
 -- `company` is a single-row settings-like table for the install's own profile.
 
+-- Drop first (children before parents isn't needed with FK checks off) so
+-- this file is safe to re-run after a partial failure on a fresh install.
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS usage_log;
+DROP TABLE IF EXISTS app_setting;
+DROP TABLE IF EXISTS admin_user;
+DROP TABLE IF EXISTS citation;
+DROP TABLE IF EXISTS message;
+DROP TABLE IF EXISTS conversation;
+DROP TABLE IF EXISTS embedding;
+DROP TABLE IF EXISTS document_chunk;
+DROP TABLE IF EXISTS document;
+DROP TABLE IF EXISTS category;
+DROP TABLE IF EXISTS agent;
+DROP TABLE IF EXISTS company;
+SET FOREIGN_KEY_CHECKS = 1;
+
 CREATE TABLE company (
     id              INT PRIMARY KEY AUTO_INCREMENT,
     name            VARCHAR(255) NOT NULL,
@@ -56,7 +73,7 @@ CREATE TABLE embedding (
     chunk_id        INT NOT NULL UNIQUE,
     model           VARCHAR(100) NOT NULL,
     dims            INT NOT NULL,
-    vector          JSON NOT NULL,       -- float array; brute-force cosine sim in app layer
+    embedding_vector JSON NOT NULL,       -- float array (brute-force cosine sim in app layer)
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (chunk_id) REFERENCES document_chunk(id) ON DELETE CASCADE
 );

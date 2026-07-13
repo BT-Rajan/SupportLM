@@ -42,7 +42,7 @@ class MySQLVectorStore:
         with get_cursor() as cur:
             cur.execute(
                 """
-                SELECT e.chunk_id, dc.document_id, dc.content, dc.heading_path, e.vector
+                SELECT e.chunk_id, dc.document_id, dc.content, dc.heading_path, e.embedding_vector
                 FROM embedding e
                 JOIN document_chunk dc ON dc.id = e.chunk_id
                 JOIN document d ON d.id = dc.document_id
@@ -53,7 +53,7 @@ class MySQLVectorStore:
 
         scored: list[SearchResult] = []
         for row in rows:
-            vec = json.loads(row["vector"])
+            vec = json.loads(row["embedding_vector"])
             sim = _cosine_similarity(query_vector, vec)
             scored.append(
                 SearchResult(

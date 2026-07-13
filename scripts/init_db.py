@@ -60,6 +60,16 @@ def run_migrations():
                 print(f"Applying {os.path.basename(path)} ...")
                 with open(path, "r") as f:
                     sql = f.read()
+                # Strip SQL comments (full-line and trailing) before splitting on
+                # ';' — a semicolon inside a comment would otherwise break a
+                # statement in half.
+                cleaned_lines = []
+                for ln in sql.splitlines():
+                    if "--" in ln:
+                        ln = ln.split("--", 1)[0]
+                    if ln.strip():
+                        cleaned_lines.append(ln)
+                sql = "\n".join(cleaned_lines)
                 statements = [s.strip() for s in sql.split(";") if s.strip()]
                 for statement in statements:
                     cur.execute(statement)
