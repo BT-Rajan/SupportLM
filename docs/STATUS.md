@@ -5,8 +5,8 @@
 
 ## Current phase
 
-**Phase 1 — Round 4 complete (1.4: indexes). 1.0 Data Model & Schema
-done. Next: 2.1 (tenant creation flow).**
+**Phase 1 — Round 5 complete (2.1: tenant creation flow). Next: 2.2
+(status lifecycle).**
 
 ## Phase progress
 
@@ -116,6 +116,30 @@ done. Next: 2.1 (tenant creation flow).**
 - Next up: 2.1 — tenant creation flow (programmatic way to stand up a
   new tenant, working end-to-end before anything else in this phase
   is verifiable).
+
+### Round 5 — completed 2.1
+- Wrote `scripts/create_tenant.py`, mirroring the existing
+  `create_admin.py` script convention (argparse CLI, `get_conn()`,
+  clean exits on known error cases rather than raw tracebacks).
+- Creates a `tenant` row and, optionally, links an owner via
+  `--owner-email` (+ `--owner-password` if that admin doesn't exist
+  yet — reuses the admin and just links it if it does, which is how
+  one admin ends up owning multiple tenants).
+- A full admin UI for this is out of scope per the WBS; a platform
+  API endpoint is deferred too, since there's no platform-admin auth
+  model yet to guard it with (today's `admin_user`/sessions are
+  tenant-scoped once RBAC lands in Phase 2) — a script is the
+  appropriate "not full UI" path for this phase.
+- Validated end-to-end against a real MariaDB instance seeded via
+  the full 001→005 migration chain: created a tenant with a new
+  owner; created a second tenant reusing that same admin as owner
+  (confirming one admin can own multiple tenants via `tenant_user`);
+  created a tenant with no owner at all; and confirmed clean
+  (non-crashing) error messages for a duplicate slug, an invalid
+  slug, and `--owner-email` given for a brand-new admin without
+  `--owner-password`.
+- Next up: 2.2 — tenant status lifecycle (active/suspended/trial
+  enforcement on every tenant-scoped route).
 
 ## Open decisions / things to confirm before Phase 1 starts
 
