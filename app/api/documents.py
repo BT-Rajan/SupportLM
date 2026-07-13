@@ -12,6 +12,7 @@ class DocumentOut(BaseModel):
     id: int
     title: str
     status: str
+    error_message: str | None = None
 
 
 @router.post("/upload", response_model=DocumentOut, dependencies=[Depends(require_admin)])
@@ -37,10 +38,27 @@ async def upload_document(file: UploadFile, background_tasks: BackgroundTasks, c
 def list_documents():
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT id, title, status FROM document ORDER BY uploaded_at DESC")
+        cur.execute("SELECT id, title, status, error_message FROM document ORDER BY uploaded_at DESC")
         rows = cur.fetchall()
         cur.close()
     return [DocumentOut(**row) for row in rows]
+
+
+@router.post("/{document_id}/reindex", response_model=DocumentOut, dependencies=[Depends(require_admin)])
+def reindex_document(document_id: int, background_tasks: BackgroundTasks):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM document_chunk WHERE document_id = %s", (document_id,))
+        cur.execute(
+            "UPDATE document SET status = 'pending', error_message = NULL WHERE id = %s",
+            (document_id,),
+        )
+        cur.execute("SELECT id, title, status, error_message FROM document WHERE id = %s", (document_id,))
+        row = cur.fetchone()
+        cur.close()
+
+    background_tasks.add_task(ingest_document, document_id)
+    return DocumentOut(**row)
 
 
 @router.delete("/{document_id}", dependencies=[Depends(require_admin)])

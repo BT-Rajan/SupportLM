@@ -38,6 +38,10 @@
         body: JSON.stringify({ question: question, conversation_id: conversationId }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        appendMessage("assistant", data.detail || "Something went wrong. Please try again.");
+        return;
+      }
       conversationId = data.conversation_id;
       appendMessage("assistant", data.answer);
       appendSources(data.sources);

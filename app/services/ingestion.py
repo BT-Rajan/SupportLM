@@ -3,11 +3,21 @@ import json
 from app.core.llm_client import embed_text
 from app.db.pool import get_conn
 from app.services.chunking import chunk_markdown
+from app.core.config import settings
 
 
 def ingest_document(document_id: int) -> None:
     """Chunk a document's markdown, embed each chunk, store both. Marks
-    the document 'ready' on success or 'error' with a message on failure."""
+    the document 'ready' on success or 'error' with a message on failure.
+
+    Note on transaction handling: get_conn() rolls back the whole
+    transaction on any exception. If we let an ingestion failure
+    propagate without committing first, the 'error' status update
+    itself would get rolled back too — leaving the document stuck at
+    whatever status it had before (e.g. 'pending' forever, with no
+    visible error). So each status transition below commits explicitly
+    before any further work that might fail.
+    """
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("SELECT raw_markdown FROM document WHERE id = %s", (document_id,))
@@ -16,9 +26,8 @@ def ingest_document(document_id: int) -> None:
             cur.close()
             return
 
-        cur.execute(
-            "UPDATE document SET status = 'processing' WHERE id = %s", (document_id,)
-        )
+        cur.execute("UPDATE document SET status = 'processing' WHERE id = %s", (document_id,))
+        conn.commit()  # persist 'processing' immediately, independent of what follows
 
         try:
             chunks = chunk_markdown(row["raw_markdown"])
@@ -35,18 +44,21 @@ def ingest_document(document_id: int) -> None:
                 cur.execute(
                     """INSERT INTO embedding (chunk_id, model, dims, embedding_vector)
                        VALUES (%s, %s, %s, %s)""",
-                    (chunk_id, "text-embedding-3-small", len(vector), json.dumps(vector)),
+                    (chunk_id, settings.embedding_model_name, len(vector), json.dumps(vector)),
                 )
 
             cur.execute(
                 "UPDATE document SET status = 'ready', processed_at = NOW() WHERE id = %s",
                 (document_id,),
             )
+            conn.commit()
         except Exception as exc:
+            conn.rollback()  # discard any partial chunk/embedding inserts from this attempt
             cur.execute(
                 "UPDATE document SET status = 'error', error_message = %s WHERE id = %s",
-                (str(exc), document_id),
+                (str(exc)[:1000], document_id),
             )
+            conn.commit()  # persist the error status durably
             raise
         finally:
             cur.close()

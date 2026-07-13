@@ -9,8 +9,8 @@ class Settings(BaseSettings):
     db_password: str = ""
 
     llm_api_key: str = ""
-    llm_embedding_model: str = "text-embedding-3-small"
-    llm_chat_model: str = "gpt-4o-mini"
+    llm_chat_model: str = "deepseek-chat"
+    embedding_model_name: str = "all-MiniLM-L6-v2"
 
     app_secret_key: str = "dev-only-change-me"
     app_env: str = "development"

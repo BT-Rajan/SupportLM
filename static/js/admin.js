@@ -93,13 +93,23 @@
     tbody.innerHTML = "";
     docs.forEach((d) => {
       const tr = document.createElement("tr");
+      const statusCell = d.status === "error"
+        ? `<span class="error" title="${(d.error_message || "").replace(/"/g, '&quot;')}">error</span>`
+        : d.status;
+      const retryBtn = d.status === "error" ? `<button data-retry-id="${d.id}">Retry</button>` : "";
       const delBtn = `<button class="danger" data-id="${d.id}">Delete</button>`;
-      tr.innerHTML = `<td>${d.title}</td><td>${d.status}</td><td>${delBtn}</td>`;
+      tr.innerHTML = `<td>${d.title}</td><td>${statusCell}</td><td>${retryBtn} ${delBtn}</td>`;
       tbody.appendChild(tr);
     });
     tbody.querySelectorAll("button.danger").forEach((btn) => {
       btn.addEventListener("click", async () => {
         await api(`/api/documents/${btn.dataset.id}`, { method: "DELETE" });
+        loadDocuments();
+      });
+    });
+    tbody.querySelectorAll("button[data-retry-id]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await api(`/api/documents/${btn.dataset.retryId}/reindex`, { method: "POST" });
         loadDocuments();
       });
     });

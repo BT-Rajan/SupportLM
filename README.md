@@ -36,6 +36,12 @@ uvicorn app.main:app --reload
 Then visit `/` for the chat UI and `/admin` to log in and manage categories/documents.
 
 ## Design decisions (Phase 1)
+- **Chat: DeepSeek. Embeddings: local (sentence-transformers).** DeepSeek's
+  API covers chat/reasoning models but has no public embeddings endpoint, so
+  embeddings run locally via `sentence-transformers` (`all-MiniLM-L6-v2` by
+  default) — no extra API key, no network dependency for that half of
+  ingestion. Swappable in `app/core/llm_client.py` if you later want a
+  hosted embedding provider instead.
 - **Single-tenant per install.** The installer provisions one company per deployment.
   No `company_id` scoping needed in Phase 1 — simplifies schema and queries. This is
   revisited if/when Phase 3+ moves toward multi-tenant hosting.
