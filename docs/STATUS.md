@@ -5,7 +5,8 @@
 
 ## Current phase
 
-**Phase 1 — Round 3 complete (1.3: backfill). Next: 1.4 (indexes).**
+**Phase 1 — Round 4 complete (1.4: indexes). 1.0 Data Model & Schema
+done. Next: 2.1 (tenant creation flow).**
 
 ## Phase progress
 
@@ -86,6 +87,35 @@
   confirmed it falls back to `'Default Tenant'` cleanly with no errors.
 - Next up: 1.4 — composite `(tenant_id, ...)` indexes for hot-path
   queries (chunk search, document listing, conversation lookup).
+
+### Round 4 — completed 1.4
+- Wrote `migrations/005_tenant_scoped_indexes.sql`: tenant-led composite
+  indexes on `document` (tenant_id, status) and (tenant_id,
+  uploaded_at), `document_chunk` (tenant_id, document_id), `embedding`
+  (tenant_id, chunk_id), `conversation` (tenant_id, last_message_at),
+  `message` (tenant_id, conversation_id, created_at), and `citation`
+  (tenant_id, message_id) — covering the chunk-search, document-listing,
+  and conversation-lookup hot paths named in the WBS.
+- Found and fixed a real multi-tenant correctness bug along the way:
+  `category.slug` had a GLOBAL UNIQUE constraint, which would have
+  stopped two different tenants both using a slug like 'billing'.
+  Replaced it with a composite `UNIQUE (tenant_id, slug)`.
+- Discovered mid-testing that MariaDB automatically repoints each
+  table's tenant FK constraint onto the new tenant-led composite index
+  (dropping the old single-column FK index from 1.2) as soon as the
+  composite is added — which breaks a DROP-then-ADD idempotency pattern
+  on re-run, since the composite becomes FK-load-bearing. Switched to
+  `ADD INDEX IF NOT EXISTS` instead; verified 3 consecutive re-runs
+  succeed with no errors.
+- Validated against MariaDB: full 001→005 chain applies cleanly on a
+  fresh DB; confirmed two different tenants can both use slug
+  `billing` while a duplicate within the same tenant is correctly
+  rejected; confirmed the exact composite index set landed on all 7
+  affected tables via `SHOW INDEX`.
+- **1.0 Data Model & Schema is now fully done (1.1–1.4).**
+- Next up: 2.1 — tenant creation flow (programmatic way to stand up a
+  new tenant, working end-to-end before anything else in this phase
+  is verifiable).
 
 ## Open decisions / things to confirm before Phase 1 starts
 
