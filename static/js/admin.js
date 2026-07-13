@@ -96,7 +96,7 @@
       const statusCell = d.status === "error"
         ? `<span class="error" title="${(d.error_message || "").replace(/"/g, '&quot;')}">error</span>`
         : d.status;
-      const retryBtn = d.status === "error" ? `<button data-retry-id="${d.id}">Retry</button>` : "";
+      const retryBtn = d.status !== "ready" ? `<button data-retry-id="${d.id}">Retry</button>` : "";
       const delBtn = `<button class="danger" data-id="${d.id}">Delete</button>`;
       tr.innerHTML = `<td>${d.title}</td><td>${statusCell}</td><td>${retryBtn} ${delBtn}</td>`;
       tbody.appendChild(tr);
