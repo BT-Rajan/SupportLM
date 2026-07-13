@@ -61,7 +61,6 @@
 
       conversationId = data.conversation_id;
       appendMessage("assistant", data.answer);
-      appendSources(data.sources);
     } catch (err) {
       appendMessage("assistant", "Network error: could not reach the server. " + (err && err.message ? err.message : ""));
     } finally {

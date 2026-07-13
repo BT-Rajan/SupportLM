@@ -1,8 +1,12 @@
+import logging
+import time
 import uuid
 
 from app.core.llm_client import chat_completion, embed_text
 from app.db.pool import get_conn
 from app.services.vector_store import MySQLVectorStore
+
+logger = logging.getLogger("supportlm.chat")
 
 _SYSTEM_PROMPT = (
     "You are {agent_name}, a support assistant. Answer the user's question using "
@@ -16,14 +20,20 @@ _store = MySQLVectorStore()
 def ask(question: str, conversation_id: str | None, agent_name: str = "Assistant") -> dict:
     conversation_id = conversation_id or str(uuid.uuid4())
 
+    t0 = time.perf_counter()
     query_vector = embed_text(question)
+    t1 = time.perf_counter()
+
     results = _store.search(query_vector, top_k=5)
+    t2 = time.perf_counter()
+
     context = "\n\n---\n\n".join(
         f"[{r.heading_path or 'Untitled section'}]\n{r.content}" for r in results
     )
 
     system_prompt = _SYSTEM_PROMPT.format(agent_name=agent_name, context=context or "(no relevant context found)")
     answer = chat_completion(system_prompt, question)
+    t3 = time.perf_counter()
 
     with get_conn() as conn:
         cur = conn.cursor()
@@ -49,6 +59,12 @@ def ask(question: str, conversation_id: str | None, agent_name: str = "Assistant
                 (assistant_message_id, r.chunk_id, rank, r.similarity),
             )
         cur.close()
+    t4 = time.perf_counter()
+
+    logger.info(
+        "ask() timing (s) — embed: %.2f, vector_search: %.2f, llm_call: %.2f, db_write: %.2f, total: %.2f",
+        t1 - t0, t2 - t1, t3 - t2, t4 - t3, t4 - t0,
+    )
 
     return {
         "conversation_id": conversation_id,
