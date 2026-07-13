@@ -29,15 +29,18 @@
   as the canonical standard for every future screen.
 - No application code changed this round.
 
-### Round 1 — completed 1.1 (proposal stage)
-- Drafted tenant/org schema proposal at
+### Round 1 — completed 1.1
+- Drafted and confirmed tenant/org schema proposal at
   `docs/schema/1.1-tenant-schema-proposal.md`: new `tenant` and
-  `tenant_user` tables, and a recommendation to fold the existing
-  `company` singleton table into `tenant` (its `profile_json` moves
-  over, `company` is dropped) rather than carry two parallel
-  "owner" concepts into Phase 2.
-- No migration SQL written yet — per 1.1's deliverable, this is a
-  proposal awaiting confirmation before 1.2 starts.
+  `tenant_user` tables, `company` to be folded into `tenant` (data
+  move happens in the 1.3 backfill, not here).
+- Wrote `migrations/002_tenant_org.sql` (creates `tenant`, `tenant_user`
+  only — `company` and existing tables untouched, that's 1.2/1.3).
+- Validated against a real MariaDB instance: 001 → 002 apply cleanly
+  on a fresh DB, `uq_tenant_admin` rejects duplicate
+  (tenant_id, admin_id) pairs, `ON DELETE CASCADE` from `tenant` to
+  `tenant_user` confirmed.
+- Next up: 1.2 — retrofit `tenant_id` onto existing tables.
 
 ## Open decisions / things to confirm before Phase 1 starts
 
