@@ -29,8 +29,11 @@ tests/
 cp .env.example .env          # fill in DB creds + embedding API key
 pip install -r requirements.txt
 python scripts/init_db.py     # runs migrations/001_init.sql
+python scripts/create_admin.py owner@company.com yourpassword   # first admin login
 uvicorn app.main:app --reload
 ```
+
+Then visit `/` for the chat UI and `/admin` to log in and manage categories/documents.
 
 ## Design decisions (Phase 1)
 - **Single-tenant per install.** The installer provisions one company per deployment.

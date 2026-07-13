@@ -1,6 +1,7 @@
-from fastapi import APIRouter, BackgroundTasks, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile
 from pydantic import BaseModel
 
+from app.core.deps import require_admin
 from app.db.pool import get_conn
 from app.services.ingestion import ingest_document
 
@@ -13,7 +14,7 @@ class DocumentOut(BaseModel):
     status: str
 
 
-@router.post("/upload", response_model=DocumentOut)
+@router.post("/upload", response_model=DocumentOut, dependencies=[Depends(require_admin)])
 async def upload_document(file: UploadFile, background_tasks: BackgroundTasks, category_id: int | None = None):
     raw = (await file.read()).decode("utf-8")
     title = file.filename.rsplit(".", 1)[0]
@@ -32,7 +33,7 @@ async def upload_document(file: UploadFile, background_tasks: BackgroundTasks, c
     return DocumentOut(id=document_id, title=title, status="pending")
 
 
-@router.get("", response_model=list[DocumentOut])
+@router.get("", response_model=list[DocumentOut], dependencies=[Depends(require_admin)])
 def list_documents():
     with get_conn() as conn:
         cur = conn.cursor()
@@ -40,3 +41,12 @@ def list_documents():
         rows = cur.fetchall()
         cur.close()
     return [DocumentOut(**row) for row in rows]
+
+
+@router.delete("/{document_id}", dependencies=[Depends(require_admin)])
+def delete_document(document_id: int):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM document WHERE id = %s", (document_id,))
+        cur.close()
+    return {"ok": True}

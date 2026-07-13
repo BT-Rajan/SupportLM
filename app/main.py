@@ -3,12 +3,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-from app.api import chat, documents
+from app.api import auth, categories, chat, documents
 
 app = FastAPI(title="KnowledgeLM", version="0.1.0")
 
 app.include_router(chat.router)
 app.include_router(documents.router)
+app.include_router(categories.router)
+app.include_router(auth.router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
