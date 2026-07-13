@@ -1,35 +1,125 @@
 // Minimal chat widget — no framework, no build step.
 (function () {
   let conversationId = null;
+  let sourceIdCounter = 0;
 
   const log = document.getElementById("chat-log");
+  const welcome = document.getElementById("welcome");
   const form = document.getElementById("chat-form");
   const input = document.getElementById("chat-input");
+  const sendBtn = form.querySelector(".composer-send");
+
+  function formatTime(date) {
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  function dismissWelcome() {
+    if (welcome) welcome.remove();
+  }
 
   function appendMessage(role, text) {
-    const el = document.createElement("div");
-    el.className = "msg msg-" + role;
-    el.textContent = text;
-    log.appendChild(el);
+    const row = document.createElement("div");
+    row.className = "row row-" + role;
+
+    const wrap = document.createElement("div");
+    wrap.className = "bubble-wrap";
+
+    const bubble = document.createElement("div");
+    bubble.className = "msg msg-" + role;
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+
+    const meta = document.createElement("div");
+    meta.className = "meta-row";
+    const time = document.createElement("span");
+    time.className = "timestamp";
+    time.textContent = formatTime(new Date());
+    meta.appendChild(time);
+    wrap.appendChild(meta);
+
+    row.appendChild(wrap);
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+    return { row, wrap, meta };
+  }
+
+  function attachSources(meta, sources) {
+    if (!sources || sources.length === 0) return;
+    sourceIdCounter += 1;
+    const listId = "sources-" + sourceIdCounter;
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "sources-toggle";
+    toggle.textContent = sources.length + (sources.length === 1 ? " source" : " sources");
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-controls", listId);
+    meta.appendChild(toggle);
+
+    const list = document.createElement("div");
+    list.className = "sources-list";
+    list.id = listId;
+    const ul = document.createElement("ul");
+    sources.forEach((s) => {
+      const li = document.createElement("li");
+      li.textContent = s.heading_path || "Untitled section";
+      ul.appendChild(li);
+    });
+    list.appendChild(ul);
+    meta.parentElement.appendChild(list);
+
+    toggle.addEventListener("click", function () {
+      const isOpen = list.classList.toggle("open");
+      toggle.setAttribute("aria-expanded", String(isOpen));
+    });
+  }
+
+  function showTyping() {
+    const row = document.createElement("div");
+    row.className = "row row-assistant";
+    row.id = "typing-row";
+    const bubble = document.createElement("div");
+    bubble.className = "typing-bubble";
+    bubble.innerHTML = "<span></span><span></span><span></span>";
+    row.appendChild(bubble);
+    log.appendChild(row);
     log.scrollTop = log.scrollHeight;
   }
 
-  function appendSources(sources) {
-    if (!sources || sources.length === 0) return;
-    const el = document.createElement("div");
-    el.className = "msg-sources";
-    el.textContent = "Sources: " + sources.map((s) => s.heading_path || "Untitled").join(", ");
-    log.appendChild(el);
+  function hideTyping() {
+    const row = document.getElementById("typing-row");
+    if (row) row.remove();
   }
 
-  form.addEventListener("submit", async function (e) {
-    e.preventDefault();
-    const question = input.value.trim();
-    if (!question) return;
+  function autoResize() {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+  }
 
+  input.addEventListener("input", autoResize);
+
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  document.querySelectorAll(".chip").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      input.value = chip.textContent;
+      form.requestSubmit();
+    });
+  });
+
+  async function sendQuestion(question) {
+    dismissWelcome();
     appendMessage("user", question);
     input.value = "";
+    autoResize();
     input.disabled = true;
+    sendBtn.disabled = true;
+    showTyping();
 
     try {
       const res = await fetch("/api/chat", {
@@ -47,25 +137,38 @@
       try {
         data = rawBody ? JSON.parse(rawBody) : null;
       } catch (parseErr) {
+        hideTyping();
         appendMessage(
-          "assistant",
+          "error",
           "Server error (" + res.status + "): " + (rawBody || "no response body").slice(0, 300)
         );
         return;
       }
 
+      hideTyping();
+
       if (!res.ok) {
-        appendMessage("assistant", (data && data.detail) || "Request failed with status " + res.status + ".");
+        appendMessage("error", (data && data.detail) || "Request failed with status " + res.status + ".");
         return;
       }
 
       conversationId = data.conversation_id;
-      appendMessage("assistant", data.answer);
+      const { meta } = appendMessage("assistant", data.answer);
+      attachSources(meta, data.sources);
     } catch (err) {
-      appendMessage("assistant", "Network error: could not reach the server. " + (err && err.message ? err.message : ""));
+      hideTyping();
+      appendMessage("error", "Network error: could not reach the server. " + (err && err.message ? err.message : ""));
     } finally {
       input.disabled = false;
+      sendBtn.disabled = false;
       input.focus();
     }
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    const question = input.value.trim();
+    if (!question) return;
+    sendQuestion(question);
   });
 })();
