@@ -5,13 +5,13 @@
 
 ## Current phase
 
-**Phase 0 — Planning complete, Phase 1 not yet started.**
+**Phase 1 — Round 1 in progress (1.1: tenant/org schema design).**
 
 ## Phase progress
 
 | Phase | Name                                   | Status      |
 |-------|-----------------------------------------|-------------|
-| 1     | Multi-tenancy & Org Foundation           | Not started |
+| 1     | Multi-tenancy & Org Foundation           | In progress |
 | 2     | Access Control & Anonymous-Chat Email    | Not started |
 | 3     | Knowledge Base Management                | Not started |
 | 4     | Retrieval & Answer Quality                | Not started |
@@ -28,6 +28,16 @@
 - Established `docs/DESIGN_SYSTEM.md` from the existing chat UI tokens
   as the canonical standard for every future screen.
 - No application code changed this round.
+
+### Round 1 — completed 1.1 (proposal stage)
+- Drafted tenant/org schema proposal at
+  `docs/schema/1.1-tenant-schema-proposal.md`: new `tenant` and
+  `tenant_user` tables, and a recommendation to fold the existing
+  `company` singleton table into `tenant` (its `profile_json` moves
+  over, `company` is dropped) rather than carry two parallel
+  "owner" concepts into Phase 2.
+- No migration SQL written yet — per 1.1's deliverable, this is a
+  proposal awaiting confirmation before 1.2 starts.
 
 ## Open decisions / things to confirm before Phase 1 starts
 
