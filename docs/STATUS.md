@@ -5,8 +5,8 @@
 
 ## Current phase
 
-**Phase 1 — Round 5 complete (2.1: tenant creation flow). Next: 2.2
-(status lifecycle).**
+**Phase 1 — Round 6 complete (2.2: status lifecycle). 2.0 Tenant
+Provisioning done. Next: 3.1 (request-scoping middleware).**
 
 ## Phase progress
 
@@ -140,6 +140,37 @@
   `--owner-password`.
 - Next up: 2.2 — tenant status lifecycle (active/suspended/trial
   enforcement on every tenant-scoped route).
+
+### Round 6 — completed 2.2
+- Wrote `app/core/tenant_access.py`: `enforce_active(status)` is a
+  pure, DB-free function deciding whether a status should block a
+  request ('suspended' → 403, 'active'/'trial' → allowed, anything
+  else → ValueError); `get_tenant_status(tenant_id)` does the one-row
+  lookup; `enforce_tenant_active(tenant_id)` combines both (404 if the
+  tenant doesn't exist, 403 if suspended).
+- Important ordering note: there is no per-request tenant resolution
+  yet — that's 3.1, which comes after all of 2.0 per the WBS's own
+  dependency graph. So this round could not literally wire status
+  checks into "every tenant-scoped route" yet (there's nothing that
+  currently resolves which tenant a request belongs to). Instead this
+  delivers the tested enforcement primitive 3.1's middleware will call
+  once it resolves `tenant_id` per request — the same "build the piece
+  before its consumer exists" pattern used for `tenant_user` in 1.1.
+- Wrote `scripts/set_tenant_status.py` (active/suspended/trial
+  transitions by slug) so the lifecycle states are actually reachable,
+  not just structurally present on the `tenant` table.
+- Added `tests/test_tenant_access.py` (4 unit tests on `enforce_active`,
+  no DB needed) — full suite passes (6/6, including the pre-existing
+  chunking tests).
+- Validated the DB-touching pieces against a real MariaDB instance:
+  suspended a tenant via the script, confirmed
+  `enforce_tenant_active` correctly 403s it and correctly allows a
+  'trial' tenant, confirmed a nonexistent tenant_id 404s, confirmed
+  invalid status/unknown slug fail cleanly via the script, then
+  reactivated the tenant.
+- **2.0 Tenant Provisioning is now fully done (2.1–2.2).**
+- Next up: 3.1 — request-scoping middleware/dependency (resolves
+  `tenant_id` per request; decide subdomain vs path param vs API key).
 
 ## Open decisions / things to confirm before Phase 1 starts
 
