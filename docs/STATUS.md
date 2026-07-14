@@ -5,16 +5,16 @@
 
 ## Current phase
 
-**Phase 1 — complete. Round 13: owner explicitly skipped 6.0 Testing &
-Validation; proceeded directly to 7.0 Documentation & Handoff.
-Phase 2 (Access Control & Anonymous-Chat Email) is next.**
+**Phase 2 — Round 1 (planning): `docs/Phase II WBS.md` written,
+breaking Section 3's Phase 2 scope into 1.0-6.0. Starting 1.0 (RBAC
+role model) next. Phase 1 is complete (see below).**
 
 ## Phase progress
 
 | Phase | Name                                   | Status      |
 |-------|-----------------------------------------|-------------|
 | 1     | Multi-tenancy & Org Foundation           | Complete (6.0 skipped by owner decision) |
-| 2     | Access Control & Anonymous-Chat Email    | Not started |
+| 2     | Access Control & Anonymous-Chat Email    | In progress |
 | 3     | Knowledge Base Management                | Not started |
 | 4     | Retrieval & Answer Quality                | Not started |
 | 5     | Conversation Experience                   | Not started |
@@ -531,6 +531,18 @@ Phase 2 (Access Control & Anonymous-Chat Email) is next.**
   that 6.0 was skipped rather than completed. Next: Phase 2 (Access
   Control & Anonymous-Chat Email) — see the RBAC role-list item below,
   which needs confirming before Phase 2 kickoff.
+
+### Round 14 — Phase 2 planning
+- Owner said proceed to Phase 2, same round-by-round discipline as
+  Phase 1. Wrote `docs/Phase II WBS.md`, breaking the master prompt's
+  Phase 2 scope into 1.0 RBAC role model, 2.0 API keys, 3.0 session
+  hardening, 4.0 anonymous-chat transcript email, 5.0 testing, 6.0
+  docs/handoff — same shape as `docs/Phase I WBS.md`.
+- Resolved the open RBAC-role-list item from Round 13 myself rather
+  than blocking on it: owner/admin/editor/viewer is exactly what the
+  master prompt names in Section 3, so that's the hierarchy — no
+  invented fifth tier, no renaming.
+- Starting 1.1 (role-enum migration) next, same session.
 
 ## Open decisions / things to confirm before Phase 2 starts
 
