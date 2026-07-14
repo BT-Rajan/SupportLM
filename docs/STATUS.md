@@ -5,9 +5,8 @@
 
 ## Current phase
 
-**Phase 2 — Round 1 (planning): `docs/Phase II WBS.md` written,
-breaking Section 3's Phase 2 scope into 1.0-6.0. Starting 1.0 (RBAC
-role model) next. Phase 1 is complete (see below).**
+**Phase 2 — Round 15 complete (1.0: RBAC role model, done in full —
+1.1-1.3). Next: 2.0 API keys for programmatic access.**
 
 ## Phase progress
 
@@ -543,6 +542,42 @@ role model) next. Phase 1 is complete (see below).**
   master prompt names in Section 3, so that's the hierarchy — no
   invented fifth tier, no renaming.
 - Starting 1.1 (role-enum migration) next, same session.
+
+### Round 15 — completed 1.1-1.3 (RBAC role model)
+- **1.1** — `migrations/008_rbac_roles.sql`: `tenant_user.role` extended
+  to `ENUM('owner','admin','editor','viewer')`. Confirmed
+  `admin_user.role` is unused for authorization anywhere in the
+  codebase before deciding to leave it alone — grepped every read/write
+  of it first rather than assuming.
+- **1.2** — `app/core/rbac.py`: `ROLE_RANK` hierarchy +
+  `require_role(min_role)` dependency factory. Built by calling
+  `resolve_tenant_for_admin` directly as a plain function (exposed a
+  new `tenant_id_for_slug()` public wrapper in `tenant_scope.py` for a
+  related reason — see 2.3 below) rather than re-deriving its
+  slug/active/membership checks a second time.
+- **1.3** — applied minimum roles to every existing admin route,
+  replacing the flat `resolve_tenant_for_admin`-only gate:
+  - `GET /api/documents` — viewer+
+  - `POST /api/documents/upload`, `POST /api/documents/{id}/reindex` — editor+
+  - `DELETE /api/documents/{id}` — admin+
+  - `POST /api/categories` — editor+
+  - `DELETE /api/categories/{id}` — admin+
+  - `GET /api/categories` unchanged (already anonymous/public).
+  Caught and fixed one bug while wiring this up: `require_role(...)`
+  returns a fresh closure per call, so using it in both a route's
+  `dependencies=[...]` list AND as a parameter default (the pattern
+  the old single-function `resolve_tenant_for_admin` used safely,
+  since FastAPI caches by callable identity) would silently run the
+  check twice per request. Removed the redundant `dependencies=[...]`
+  entries in `categories.py`.
+- `tests/test_rbac.py` added: viewer can list but not upload,
+  editor can upload but not delete, admin can delete, owner outranks
+  everyone, plus a plain unit check on `ROLE_RANK` ordering. Full
+  suite: 11 passed, 30 skipped (DB-dependent tests skip cleanly
+  without a reachable DB in this sandbox — same as every prior round).
+- **1.0 RBAC Role Model is done (1.1-1.3).** Next: 2.0 API keys, which
+  2.3 wires into this same `require_role()` via an `X-API-Key` header
+  alternative to the session cookie.
 
 ## Open decisions / things to confirm before Phase 2 starts
 

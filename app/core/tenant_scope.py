@@ -68,6 +68,16 @@ def _admin_linked_to_tenant(tenant_id: int, admin_id: int) -> bool:
         return cur.fetchone() is not None
 
 
+def tenant_id_for_slug(tenant_slug: str) -> int:
+    """Public wrapper around `_tenant_id_for_slug`, for callers outside
+    this module that need the slug->id lookup without the rest of the
+    admin-session dependency machinery — e.g. Phase 2's API-key auth
+    path in `app/core/rbac.py`, which authenticates a request without
+    a session cookie at all and so can't go through
+    `resolve_tenant_for_admin`."""
+    return _tenant_id_for_slug(tenant_slug)
+
+
 def resolve_tenant(tenant_slug: str = Path(...)) -> int:
     """Resolve `{tenant_slug}` to a tenant_id for an anonymous,
     tenant-scoped route (the chat widget). 404 unknown slug, 403

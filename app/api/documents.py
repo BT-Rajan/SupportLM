@@ -1,12 +1,16 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from app.core.tenant_scope import resolve_tenant_for_admin
+from app.core.rbac import require_role
 from app.db.pool import get_conn
 from app.services.ingestion import ingest_document
 from app.services.usage import enforce_document_limit
 
-router = APIRouter(prefix="/api/documents", tags=["documents"], dependencies=[Depends(resolve_tenant_for_admin)])
+# WBS 1.3: replaces the flat resolve_tenant_for_admin-only gate (any
+# linked admin, any action) with per-route minimum roles. No router-
+# level `dependencies=[...]` default anymore since the routes below no
+# longer share one minimum — each declares its own via require_role().
+router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 
 class DocumentOut(BaseModel):
@@ -21,7 +25,7 @@ async def upload_document(
     file: UploadFile,
     background_tasks: BackgroundTasks,
     category_id: int | None = None,
-    tenant_id: int = Depends(resolve_tenant_for_admin),
+    tenant_id: int = Depends(require_role("editor")),
 ):
     # Check BEFORE reading/inserting anything — a tenant at its limit
     # shouldn't have the upload partially processed first.
@@ -53,7 +57,7 @@ async def upload_document(
 
 
 @router.get("", response_model=list[DocumentOut])
-def list_documents(tenant_id: int = Depends(resolve_tenant_for_admin)):
+def list_documents(tenant_id: int = Depends(require_role("viewer"))):
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -66,7 +70,7 @@ def list_documents(tenant_id: int = Depends(resolve_tenant_for_admin)):
 
 
 @router.post("/{document_id}/reindex", response_model=DocumentOut)
-def reindex_document(document_id: int, background_tasks: BackgroundTasks, tenant_id: int = Depends(resolve_tenant_for_admin)):
+def reindex_document(document_id: int, background_tasks: BackgroundTasks, tenant_id: int = Depends(require_role("editor"))):
     with get_conn() as conn:
         cur = conn.cursor()
         # Confirm the document belongs to this tenant BEFORE touching
@@ -94,7 +98,7 @@ def reindex_document(document_id: int, background_tasks: BackgroundTasks, tenant
 
 
 @router.delete("/{document_id}")
-def delete_document(document_id: int, tenant_id: int = Depends(resolve_tenant_for_admin)):
+def delete_document(document_id: int, tenant_id: int = Depends(require_role("admin"))):
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("DELETE FROM document WHERE id = %s AND tenant_id = %s", (document_id, tenant_id))
