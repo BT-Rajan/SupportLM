@@ -5,8 +5,8 @@
 
 ## Current phase
 
-**Phase 2 — Round 15 complete (1.0: RBAC role model, done in full —
-1.1-1.3). Next: 2.0 API keys for programmatic access.**
+**Phase 2 — Round 16 complete (2.0: API keys for programmatic access,
+done in full — 2.1-2.3). Next: 3.0 session management hardening.**
 
 ## Phase progress
 
@@ -578,6 +578,58 @@
 - **1.0 RBAC Role Model is done (1.1-1.3).** Next: 2.0 API keys, which
   2.3 wires into this same `require_role()` via an `X-API-Key` header
   alternative to the session cookie.
+
+### Round 16 — completed 2.0 (2.1, 2.2, 2.3)
+- **2.1 — schema**: `migrations/009_api_keys.sql` adds `api_key`
+  (tenant-scoped, `role` reusing 1.0's exact
+  `ENUM('owner','admin','editor','viewer')`, only a SHA-256 hash
+  persisted — never the raw key — plus a `key_prefix` for list-view
+  recognition). `created_by_admin_id` is nullable with `ON DELETE
+  SET NULL`: deleting the minting admin shouldn't revoke keys out
+  from under a live integration; revocation stays the explicit act
+  (`revoked_at`).
+- **2.2 — key management endpoints** (`app/api/api_keys.py`): create,
+  list, revoke, all `admin`+ — the WBS only named create as
+  sensitive, but list/revoke expose and control the same credential
+  surface, so all three sit behind one floor rather than splitting it.
+  Caught a real privilege-escalation gap while building create: the
+  WBS's "admin+ only" would let an `admin` (rank 2) mint an `owner`
+  (rank 3) key — access higher than their own, through the back door.
+  Fixed by capping a minted key's role at the creating admin's own
+  rank; an admin can still mint admin-or-lower keys, exactly as
+  scoped, just not owner. This needed knowing the caller's own role at
+  the route, which plain `require_role()` doesn't expose (by design —
+  it only returns `tenant_id`), so added `require_role_ctx()` as a
+  second, `(tenant_id, role, admin_id)`-returning entry point built on
+  the same shared `_authenticate()` internals rather than duplicating
+  the auth branch — every existing `require_role()` call site in
+  `documents.py`/`categories.py` is untouched.
+- **2.3 — API-key auth path**: `require_role()` (and the new
+  `require_role_ctx()`) now accept `X-API-Key` as an alternative to
+  the session cookie on every route that already used `require_role`
+  — no route changed to opt in, they got it automatically. A key is
+  checked against the tenant named in the URL and must not be
+  revoked, exactly mirroring the session path's membership + role
+  check but against `api_key` instead of `tenant_user`. A bad/expired
+  key never falls back to a session cookie that happens to also be
+  present — mixing the two silently would let a broken credential
+  succeed by accident.
+- `tests/test_api_keys.py` added: editor can't mint, admin can't mint
+  an owner-role key, a minted key authenticates at its own role
+  (upload yes, delete no) and stops working immediately after revoke,
+  a key minted for one tenant is rejected on another tenant's slug,
+  and an invalid key is rejected outright.
+- Validated beyond unit level: stood up a real MariaDB instance,
+  applied the full `001`→`009` migration chain cleanly, confirmed
+  `009` is independently safe to re-run (`SHOW CREATE TABLE` matched
+  exactly on re-run — both FKs, the unique hash constraint, and the
+  tenant-led composite index all intact), and ran the full suite three
+  consecutive times against the same DB with no cleanup between runs:
+  **46/46 passing every time**, no regressions in Phase 1 or 1.0's
+  RBAC tests.
+- **2.0 API Keys for Programmatic Access is done (2.1-2.3).** Next:
+  3.0 Session Management Hardening — `session_version` column,
+  logout-everywhere endpoint, cookie `secure`-flag audit.
 
 ## Open decisions / things to confirm before Phase 2 starts
 
