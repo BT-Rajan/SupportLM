@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.tenant_scope import resolve_tenant
+from app.core.theme import resolve_theme
 from app.services.chat import ask
 
 router = APIRouter(prefix="/api/chat", tags=["chat"], dependencies=[Depends(resolve_tenant)])
@@ -20,7 +21,8 @@ class ChatRequest(BaseModel):
 @router.post("")
 def post_chat(req: ChatRequest, tenant_id: int = Depends(resolve_tenant)):
     try:
-        return ask(tenant_id, req.question, req.conversation_id)
+        agent_name = resolve_theme(tenant_id)["agent_name"]
+        return ask(tenant_id, req.question, req.conversation_id, agent_name=agent_name)
     except httpx.HTTPStatusError as exc:
         logger.error("Chat provider HTTP error: %s", exc.response.text[:500])
         raise HTTPException(

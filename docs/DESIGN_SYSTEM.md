@@ -61,6 +61,55 @@ inline hex values in a component file):
   only — don't reuse the notch shape for unrelated cards; it means
   "this came from the support/ticket system," not "generic panel."
 
+## Per-tenant branding (WBS 4.1-4.3)
+
+Tenants can override brand name, logo, and accent color; the underlying
+component set and typography (this whole file) stay standardized. This
+is NOT a second design system — it's one controlled seam into this one.
+
+- **The only color input a tenant gives is one accent hex.**
+  `app/core/theme.py`'s `derive_palette()` produces `--accent-ink` and
+  `--accent-soft` from it via the same HSL relationship the default
+  emerald triad already has (darken ~12 percentage points of lightness
+  for ink; desaturate + lighten to ~92% lightness for soft). Never ask
+  a tenant to pick `--accent-ink`/`--accent-soft` independently —
+  three independent pickers is how a tenant ends up with a clashing
+  palette; one input color is how every tenant's result stays
+  internally consistent with itself.
+- **Lightness is clamped to 0.28–0.62** before deriving anything, so a
+  tenant can't pick a pale color that breaks white-on-accent contrast
+  on `.composer-send` / `.msg-user`, or a near-black that reads as
+  invisible. The quality floor holds regardless of tenant input —
+  don't remove this clamp to give tenants "more freedom."
+- **Injection mechanism**: an inline `<style>:root{...}</style>` block
+  in the `<head>`, after the base stylesheet link, overriding the same
+  three CSS variables. Later in source order wins the cascade with no
+  `!important` — this is the whole "pluggable" seam. Any new
+  per-tenant-overridable token added later follows this same pattern:
+  add it to `DEFAULT_THEME` in `theme.py`, resolve it in
+  `resolve_theme()`, inject it in the same style block. Don't invent a
+  second injection mechanism (e.g. a `data-theme` attribute + CSS
+  selectors) for a new token — extend this one.
+- **Brand mark**: a tenant's `logo_url` renders as an `<img>` in the
+  same 36×36 footprint as the default monogram square
+  (`.brand-mark-logo` in chat.css — `object-fit: contain` + a border,
+  since an arbitrary uploaded logo won't be pre-cropped to a square).
+  No logo → a single-letter monogram derived from `display_name`,
+  same treatment as today's "S". Never leave the brand-mark slot empty.
+- **Fallback is exact, not inferred**: a tenant with no branding row —
+  or no value for one specific field — gets exactly today's default
+  for that field (`Support` / `Assistant` / emerald `#0e7c66` /
+  monogram), not a value auto-derived from the tenant's internal org
+  name (`tenant.name`). That name may not even be customer-facing copy
+  (e.g. "Acme Corp LLC (Trial)"). Branding is opt-in per field via
+  `tenant_branding`, never inferred from other tables.
+- Only `templates/chat.html` reads tenant branding today. The admin
+  dashboard intentionally stays on the default theme — it's an
+  internal tool, not customer-facing, and mixing per-tenant branding
+  into it would make screenshots/support harder to reason about across
+  tenants. Revisit only if a later phase explicitly asks for a branded
+  admin experience.
+
 ## Rules for new screens (admin dashboard, analytics, agent config, etc.)
 
 1. Pull in the same Google Fonts stack (Space Grotesk / Inter / IBM Plex

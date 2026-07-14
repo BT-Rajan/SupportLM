@@ -5,9 +5,8 @@
 
 ## Current phase
 
-**Phase 1 — Round 10 complete (3.3: cross-tenant regression tests). 3.0
-Data Isolation Enforcement fully done (3.1-3.3). Next: 4.1 (branding
-data model).**
+**Phase 1 — Round 11 complete (4.0: branding, done in full — 4.1-4.3).
+Next: 5.1 (needs tier decision from Rajan) or jump ahead to 6.0.**
 
 ## Phase progress
 
@@ -379,6 +378,93 @@ data model).**
   is done (3.1–3.3).** Next is 4.0 Per-Tenant Branding, starting with
   4.1 — the branding data model (extends `tenant`, doesn't replace the
   design system).
+
+### Round 11 — completed 4.0 (4.1, 4.2, 4.3 together)
+- Person explicitly raised the bar for this round: branding should be
+  "comprehensive... world class enterprise grade luxurious... separate
+  pluggable theme." Read the existing `chat.css`/`DESIGN_SYSTEM.md`
+  first rather than assuming a rebuild was needed — the signature
+  ticket-stub notch, Space Grotesk/Inter/IBM Plex Mono pairing, and
+  semantic tokens were already a considered identity, not a generic AI
+  default. The "luxurious/pluggable" lever is the color-derivation
+  engine, not more raw inputs — see below.
+- **4.1 — data model**: `migrations/006_tenant_branding.sql` — a
+  dedicated 1:1 `tenant_branding` table (`display_name`, `agent_name`,
+  `logo_url`, `accent_hex`), not more columns bolted onto `tenant`
+  itself. Every field independently nullable/optional.
+- **The actual "pluggable" engineering**: `app/core/theme.py`.
+  A tenant supplies exactly ONE accent hex; `derive_palette()` derives
+  `--accent-ink` (hover/active) and `--accent-soft` (chip/notch tint)
+  from it via the same HSL relationship the hand-picked default emerald
+  triad already has — darken ~12pp lightness for ink, desaturate +
+  lighten to ~92% for soft. This is what keeps every tenant's palette
+  internally cohesive without requiring three independent color
+  pickers a non-designer could mismatch. Lightness is clamped to
+  0.28–0.62 before any of that, so a tenant literally cannot pick a
+  color that breaks white-on-accent button contrast (too pale) or
+  reads as invisible (too dark) — verified a near-black input (`#111`)
+  gets pulled up to a usable gray and a pale cream gets pulled down,
+  both via actual HLS-lightness assertions, not eyeballing.
+- **4.2 — injection**: `templates/chat.html` now takes a
+  `theme` dict from `main.py`'s `index()` route (calls
+  `resolve_theme(tenant_id)`). Mechanism is a second `<style>
+  :root{...}</style>` block after the base stylesheet link — later in
+  source order wins the cascade, no `!important`, and it's the whole
+  "separate pluggable" seam: swap the theme without touching
+  `chat.css`. `<title>`, brand name, and brand mark (logo `<img>` in
+  the same 36×36 footprint as before, or a monogram derived from
+  `display_name`) all now read from `theme`. Also threaded
+  `agent_name` into `app/api/chat.py` -> `ask()`'s system prompt,
+  which was hardcoded to "Assistant" before.
+- **4.3 — fallback**: a tenant with no `tenant_branding` row, or no
+  value for one specific field, gets exactly today's default for that
+  field — literal "Support" / "Assistant" / emerald `#0e7c66`, NOT an
+  auto-branded version of the tenant's internal `tenant.name` (that
+  name may not be customer-facing copy at all, e.g. "Acme Corp LLC
+  (Trial)"). Branding is opt-in per field, never inferred. Also
+  defensive on the read path: an invalid stored `accent_hex` (bad data
+  however it got there) falls back to the default rather than 500ing
+  the whole widget page.
+- Added `scripts/set_tenant_branding.py` (same "script, not a full
+  admin UI yet" pattern as `create_tenant.py`) — the actual working
+  path to configure branding until a real UI exists. Supports partial
+  updates (only touches fields you pass) and clearing a field back to
+  default (empty string).
+- Updated `docs/DESIGN_SYSTEM.md` with a new "Per-tenant branding"
+  section documenting the pattern (one-input color derivation, the
+  injection mechanism, the exact-not-inferred fallback rule) so a
+  later phase extending this follows the same seam instead of
+  inventing a second one.
+- Validated well beyond "written and assumed": rendered both a
+  default-theme tenant and a fully-branded tenant end-to-end via
+  `TestClient` and inspected the actual returned HTML (`<title>`,
+  injected `<style>` block, monogram vs logo `<img>`) rather than just
+  checking status codes; ran `set_tenant_branding.py` through full
+  branding, partial update, invalid accent, unknown slug, and
+  field-clearing scenarios; confirmed a branded tenant's `agent_name`
+  ("Nova") actually reaches the chat system prompt by mocking
+  `chat_completion` and inspecting what it was called with; extended
+  3.3's tenant-deletion cascade regression test to cover the new
+  `tenant_branding` table.
+- Fixed two bugs in my own test assertions before they'd have been
+  silent false-negatives later: two color-clamp tests were checking
+  the raw R channel as a lightness proxy, which is wrong for
+  saturated hues (R dominates in yellow/red regions regardless of
+  actual lightness) — rewrote both to check real HLS lightness via
+  `colorsys`, then had to widen the epsilon slightly for legitimate
+  8-bit hex quantization rounding.
+- Verified fresh-install correctness: all 6 migrations (001–006) apply
+  cleanly in order on a brand-new empty database. Full suite: 29/29
+  passing.
+- **4.0 Per-Tenant Branding is done (4.1–4.3), skipping directly to a
+  more capable implementation than the WBS's minimum ask** (a color
+  engine + fallback contract, not just four raw override columns).
+  4.0 and 5.0 (Usage Tiers) can run in parallel per the WBS's own
+  dependency graph — 5.1 (tier structure) is still an open decision
+  needing your input (see below) before 5.2/5.3 can be built. Next
+  action is Phase 1's own choice at this point: either 5.1 (needs your
+  input on tier names/limits) or jump to 6.0 Testing & Validation
+  since 4.0 and 5.0 don't block each other.
 
 ## Open decisions / things to confirm before Phase 1 starts
 

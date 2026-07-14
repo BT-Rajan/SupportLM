@@ -21,6 +21,13 @@ proposal.md):
                       4.1 wires branding to it. Structurally it already
                       has the same NOT NULL FK + cascade as every other
                       table, which the cascade test below covers.
+  tenant_branding -> added in 4.1, after this file was first written;
+                      included in the cascade test below. No cross-
+                      tenant read/write surface exists for it yet (no
+                      route reads another tenant's branding by id —
+                      resolve_theme() only ever queries by the already-
+                      resolved tenant_id), so there's nothing else to
+                      add here until that changes.
 
 What's added here, specifically to close gaps:
   1. Citation referential integrity: every citation a tenant's
@@ -185,6 +192,10 @@ def test_deleting_a_tenant_cascades_to_every_tenant_scoped_table():
             (tenant_id, message_id, chunk_id),
         )
         cur.execute("INSERT INTO agent (tenant_id, name) VALUES (%s, 'Bot')", (tenant_id,))
+        cur.execute(
+            "INSERT INTO tenant_branding (tenant_id, display_name, accent_hex) VALUES (%s, 'Cascade Co', '#7c3aed')",
+            (tenant_id,),
+        )
         cur.close()
 
     with get_conn() as conn:
@@ -196,7 +207,7 @@ def test_deleting_a_tenant_cascades_to_every_tenant_scoped_table():
         cur = conn.cursor()
         for table in (
             "category", "document", "document_chunk", "embedding",
-            "conversation", "message", "citation", "agent",
+            "conversation", "message", "citation", "agent", "tenant_branding",
         ):
             cur.execute(f"SELECT COUNT(*) AS n FROM {table} WHERE tenant_id = %s", (tenant_id,))
             remaining = cur.fetchone()["n"]

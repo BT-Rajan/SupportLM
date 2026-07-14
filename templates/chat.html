@@ -3,20 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Support</title>
+  <title>{{ theme.display_name }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/chat.css">
+  {# Per-tenant palette override (WBS 4.1-4.3): same :root selector as
+     chat.css, later in source order, so it wins in the cascade with no
+     !important needed. Loads after the base stylesheet on purpose —
+     this is the "pluggable" seam: swap the theme without touching
+     chat.css itself. Falls back to the base stylesheet's own values
+     (today's default emerald) when a tenant has no accent configured,
+     since resolve_theme() already resolved that fallback server-side. #}
+  <style>
+    :root {
+      --accent: {{ theme.accent }};
+      --accent-ink: {{ theme.accent_ink }};
+      --accent-soft: {{ theme.accent_soft }};
+    }
+  </style>
 </head>
 <body>
   <div class="console">
 
     <header class="console-header">
       <div class="brand">
-        <span class="brand-mark" aria-hidden="true">S</span>
+        {% if theme.logo_url %}
+        <img class="brand-mark brand-mark-logo" src="{{ theme.logo_url }}" alt="{{ theme.display_name }}" aria-hidden="true">
+        {% else %}
+        <span class="brand-mark" aria-hidden="true">{{ theme.monogram }}</span>
+        {% endif %}
         <div class="brand-text">
-          <span class="brand-name">Support</span>
+          <span class="brand-name">{{ theme.display_name }}</span>
           <span class="brand-status"><span class="status-dot"></span>Usually replies in seconds</span>
         </div>
       </div>

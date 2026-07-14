@@ -8,6 +8,7 @@ from starlette.requests import Request
 
 from app.api import auth, categories, chat, documents
 from app.core.tenant_scope import resolve_tenant
+from app.core.theme import resolve_theme
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("supportlm")
@@ -63,7 +64,10 @@ def index(request: Request, tenant_slug: str, tenant_id: int = Depends(resolve_t
     # Anonymous page (the chat widget) — resolve_tenant, not the admin
     # variant: 404/403 for an unknown/suspended tenant, no session
     # required, same as the /api/chat route this page calls into.
-    return templates.TemplateResponse("chat.html", {"request": request, "tenant_slug": tenant_slug})
+    theme = resolve_theme(tenant_id)
+    return templates.TemplateResponse(
+        "chat.html", {"request": request, "tenant_slug": tenant_slug, "theme": theme}
+    )
 
 
 @app.get("/t/{tenant_slug}/admin")
