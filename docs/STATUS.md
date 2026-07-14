@@ -5,8 +5,9 @@
 
 ## Current phase
 
-**Phase 1 — Round 9 complete (3.2: query retrofit). 3.0 Data Isolation
-Enforcement done. Next: 3.3 (automated cross-tenant access tests).**
+**Phase 1 — Round 10 complete (3.3: cross-tenant regression tests). 3.0
+Data Isolation Enforcement fully done (3.1-3.3). Next: 4.1 (branding
+data model).**
 
 ## Phase progress
 
@@ -339,6 +340,45 @@ Enforcement done. Next: 3.3 (automated cross-tenant access tests).**
   regression net for 3.2 going forward (this round's tests cover what
   I thought to check; 3.3 is about making that coverage systematic
   rather than ad hoc).
+
+### Round 10 — completed 3.3
+- Did the gap analysis first rather than re-testing what 3.2 already
+  covers well. Mapped all 8 tenant-scoped tables against existing test
+  coverage (documented as a table in the new file's own docstring so
+  it stays discoverable, not just in this log):
+  - `document`, `document_chunk`, `embedding`, `category`,
+    `conversation`, `message` — already covered by
+    `test_query_isolation.py`. Not duplicated here.
+  - `citation` — gap. Prior tests confirmed search never *returns* the
+    wrong tenant's chunk, but nothing asserted that a citation row's
+    own `tenant_id` actually matches the chunk it references — a
+    weaker, more direct correctness property that could in principle
+    fail even if search itself is correct (e.g. a future refactor that
+    passes the wrong tenant_id into the citation INSERT).
+  - `agent` — no route or service reads/writes it yet beyond the
+    column existing since 1.2/1.3 (no agent CRUD, branding isn't built
+    until 4.1). Nothing at the application layer to test yet; noted
+    explicitly rather than writing a test with nothing to assert.
+- Added `tests/test_cross_tenant_access.py` with two new tests:
+  1. **Citation referential integrity** — two tenants each get a real
+     indexed chunk and ask a question; asserts via an explicit SQL
+     join that every citation's `tenant_id` matches the `tenant_id` of
+     the chunk it cites, for every citation produced.
+  2. **Tenant-deletion cascade regression** — formalizes the manual
+     cascade check done by hand back in round 1 (1.1) into an actual
+     pytest test: seeds one row in all 8 tenant-scoped tables, deletes
+     the tenant, asserts zero rows remain anywhere. This is the
+     structural backstop under everything else — if a future migration
+     ever weakens a FK or its `ON DELETE CASCADE`, this fails loudly
+     instead of leaving orphaned rows that could later be
+     misattributed if a tenant_id gets reused.
+- Verified idempotency: reran the full suite twice consecutively
+  against the same DB with no cleanup between runs. Full suite: 20/20
+  passing.
+- **3.0 Data Isolation Enforcement, complete with its regression net,
+  is done (3.1–3.3).** Next is 4.0 Per-Tenant Branding, starting with
+  4.1 — the branding data model (extends `tenant`, doesn't replace the
+  design system).
 
 ## Open decisions / things to confirm before Phase 1 starts
 
