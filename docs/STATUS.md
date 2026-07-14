@@ -5,8 +5,8 @@
 
 ## Current phase
 
-**Phase 2 — Round 16 complete (2.0: API keys for programmatic access,
-done in full — 2.1-2.3). Next: 3.0 session management hardening.**
+**Phase 2 — Round 17 complete (3.0: session management hardening,
+done in full — 3.1-3.3). Next: 4.0 anonymous chat transcript email.**
 
 ## Phase progress
 
@@ -630,6 +630,52 @@ done in full — 2.1-2.3). Next: 3.0 session management hardening.**
 - **2.0 API Keys for Programmatic Access is done (2.1-2.3).** Next:
   3.0 Session Management Hardening — `session_version` column,
   logout-everywhere endpoint, cookie `secure`-flag audit.
+
+### Round 17 — completed 3.0 (3.1, 3.2, 3.3)
+- **3.1 — server-side session invalidation**: `migrations/010_session_hardening.sql`
+  adds `admin_user.session_version` (default 1). New `app/core/session.py`
+  (one-concern-per-module, same shape as `tenant_access.py`/`theme.py`)
+  holds `current_session_version()`/`bump_session_version()` — the only
+  place that reads or writes the column. `app/core/security.py`'s
+  `create_session_token`/`read_session_token` now carry/return a
+  `session_version` claim alongside `admin_id` (return type changed
+  from bare `int` to the full claims dict — the one call site,
+  `deps.py`, was updated in the same round). `require_admin` now 401s
+  on three cases the same way: a token with no `session_version` claim
+  at all (pre-3.1 shape), a version that's been bumped since the token
+  was issued, and an admin_id that no longer exists.
+- **3.2 — logout-everywhere**: `POST /api/auth/logout-all`
+  (`admin`-session-authenticated) bumps `session_version`, which
+  invalidates every outstanding session for that admin in one call —
+  confirmed this includes the calling session itself, not just other
+  ones, since its own token carries the now-stale version too.
+- **3.3 — cookie hardening audit**: `secure` flag on the session cookie,
+  conditional on `settings.app_env == "production"` — was
+  unconditionally absent before. Conditional rather than hardcoded on,
+  since a hardcoded `secure=True` would silently break the cookie
+  round-trip on plain-HTTP XAMPP dev.
+- Deliberate side effect, called out in the migration itself: every
+  session token issued before this round stops authenticating the
+  moment 010 lands, because it has no `session_version` claim to
+  match against. Not a bug — a security-hardening change shouldn't
+  grandfather in tokens minted under the weaker, unrevocable model.
+  Every admin just logs in again once.
+- `tests/test_session_hardening.py` added: logout-all invalidates the
+  calling session AND a second, independent session for the same
+  admin; a fresh login after logout-all works normally; a manually
+  crafted pre-3.1-shape token (no `session_version` claim) is
+  rejected; the cookie secure-flag wiring is confirmed to flip
+  correctly under both `app_env=development` and `app_env=production`
+  (`False`/`True` respectively, checked directly, not just via the
+  equality assertion in the DB-gated test).
+- Validated beyond unit level: applied `010` to the same live MariaDB
+  instance used for Round 16 (full `001`→`010` chain), confirmed `010`
+  is independently safe to re-run, and ran the full suite three
+  consecutive times: **50/50 passing** every time, no regressions in
+  Phase 1, 1.0 RBAC, or 2.0 API keys.
+- **3.0 Session Management Hardening is done (3.1-3.3).** Next: 4.0
+  Anonymous Chat Transcript Email — independent of 1.0-3.0, since
+  anonymous chat has no admin/session/role concept at all.
 
 ## Open decisions / things to confirm before Phase 2 starts
 
