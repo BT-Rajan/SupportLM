@@ -5,14 +5,15 @@
 
 ## Current phase
 
-**Phase 1 — Round 12 complete (5.0: usage tiers & plan limits, done in
-full — 5.1-5.3). Next: 6.0 Testing & Validation.**
+**Phase 1 — complete. Round 13: owner explicitly skipped 6.0 Testing &
+Validation; proceeded directly to 7.0 Documentation & Handoff.
+Phase 2 (Access Control & Anonymous-Chat Email) is next.**
 
 ## Phase progress
 
 | Phase | Name                                   | Status      |
 |-------|-----------------------------------------|-------------|
-| 1     | Multi-tenancy & Org Foundation           | In progress |
+| 1     | Multi-tenancy & Org Foundation           | Complete (6.0 skipped by owner decision) |
 | 2     | Access Control & Anonymous-Chat Email    | Not started |
 | 3     | Knowledge Base Management                | Not started |
 | 4     | Retrieval & Answer Quality                | Not started |
@@ -511,8 +512,39 @@ full — 5.1-5.3). Next: 6.0 Testing & Validation.**
   smoke test, 6.3 full regression pass — the last WBS section before
   Phase 1 can be marked complete.
 
-## Open decisions / things to confirm before Phase 1 starts
+### Round 13 — skipped 6.0, completed 7.0 (7.1)
+- Owner explicitly decided **6.0 Testing & Validation (6.1 migration
+  rollback test, 6.2 multi-tenant smoke test, 6.3 full regression
+  pass) is skipped for now**, not deferred silently — recorded here so
+  it isn't mistaken for having been done. If it's picked up later, it
+  slots in unchanged between 5.0 and 7.0 in `docs/Phase I WBS.md`.
+- **7.1 — `docs/STATUS.md` updated**: Phase 1 marked complete above,
+  with the 6.0 skip called out explicitly in both the header and the
+  phase-progress table rather than left ambiguous.
+- **7.2 — `docs/DESIGN_SYSTEM.md`**: already done, ahead of this round.
+  Round 11 added the "Per-tenant branding" section there directly when
+  4.0 landed, documenting the one-input color-derivation pattern and
+  the exact-not-inferred fallback rule. Nothing further to add here —
+  no new component pattern (tenant switcher, settings-panel
+  affordance) was introduced since.
+- **Phase 1 (Multi-tenancy & Org Foundation) is done**, with the caveat
+  that 6.0 was skipped rather than completed. Next: Phase 2 (Access
+  Control & Anonymous-Chat Email) — see the RBAC role-list item below,
+  which needs confirming before Phase 2 kickoff.
 
+## Open decisions / things to confirm before Phase 2 starts
+
+- RBAC role list: Phase 2 needs the actual role set for `tenant_user`
+  (currently only `'owner'` is ever inserted, by `create_tenant.py` and
+  `_ensure_admin_linked`-style flows) before user-invite/permission
+  work can start — e.g. owner/admin/agent/viewer, or whatever set the
+  owner confirms. `count_seats()` in `app/services/usage.py` is ready
+  to enforce `seat_limit` once Phase 2 adds a call site for it.
+- 6.0 Testing & Validation (Phase 1's migration rollback test,
+  multi-tenant smoke test, full regression pass) was explicitly
+  skipped rather than done — flagged here in case the owner wants it
+  picked up before or during Phase 2 rather than left undone
+  indefinitely.
 - Multi-tenant isolation strategy: separate DB schema per tenant vs.
   shared schema with `tenant_id` row-level scoping. Recommendation to
   bring to Phase 1 kickoff: shared schema + `tenant_id` (simpler
