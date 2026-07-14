@@ -18,9 +18,9 @@ class ChatRequest(BaseModel):
 
 
 @router.post("")
-def post_chat(req: ChatRequest):
+def post_chat(req: ChatRequest, tenant_id: int = Depends(resolve_tenant)):
     try:
-        return ask(req.question, req.conversation_id)
+        return ask(tenant_id, req.question, req.conversation_id)
     except httpx.HTTPStatusError as exc:
         logger.error("Chat provider HTTP error: %s", exc.response.text[:500])
         raise HTTPException(

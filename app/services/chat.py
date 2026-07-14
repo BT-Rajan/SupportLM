@@ -17,14 +17,12 @@ _SYSTEM_PROMPT = (
 _store = MySQLVectorStore()
 
 
-def ask(question: str, conversation_id: str | None, agent_name: str = "Assistant") -> dict:
-    conversation_id = conversation_id or str(uuid.uuid4())
-
+def ask(tenant_id: int, question: str, conversation_id: str | None, agent_name: str = "Assistant") -> dict:
     t0 = time.perf_counter()
     query_vector = embed_text(question)
     t1 = time.perf_counter()
 
-    results = _store.search(query_vector, top_k=5)
+    results = _store.search(tenant_id, query_vector, top_k=5)
     t2 = time.perf_counter()
 
     context = "\n\n---\n\n".join(
@@ -37,26 +35,40 @@ def ask(question: str, conversation_id: str | None, agent_name: str = "Assistant
 
     with get_conn() as conn:
         cur = conn.cursor()
+
+        # If a conversation_id was supplied, only reuse it if it already
+        # belongs to this tenant — otherwise silently start a fresh one.
+        # Without this, a caller could pass another tenant's
+        # conversation_id and have their messages/citations attached to
+        # it (or read its history back via the conversation_id they'd
+        # then know).
+        if conversation_id:
+            cur.execute("SELECT tenant_id FROM conversation WHERE id = %s", (conversation_id,))
+            existing = cur.fetchone()
+            if existing and existing["tenant_id"] != tenant_id:
+                conversation_id = None
+        conversation_id = conversation_id or str(uuid.uuid4())
+
         cur.execute(
-            """INSERT INTO conversation (id) VALUES (%s)
+            """INSERT INTO conversation (id, tenant_id) VALUES (%s, %s)
                ON DUPLICATE KEY UPDATE last_message_at = NOW()""",
-            (conversation_id,),
+            (conversation_id, tenant_id),
         )
         cur.execute(
-            "INSERT INTO message (conversation_id, role, content) VALUES (%s, 'user', %s)",
-            (conversation_id, question),
+            "INSERT INTO message (tenant_id, conversation_id, role, content) VALUES (%s, %s, 'user', %s)",
+            (tenant_id, conversation_id, question),
         )
         cur.execute(
-            "INSERT INTO message (conversation_id, role, content) VALUES (%s, 'assistant', %s)",
-            (conversation_id, answer),
+            "INSERT INTO message (tenant_id, conversation_id, role, content) VALUES (%s, %s, 'assistant', %s)",
+            (tenant_id, conversation_id, answer),
         )
         assistant_message_id = cur.lastrowid
 
         for rank, r in enumerate(results, start=1):
             cur.execute(
-                """INSERT INTO citation (message_id, chunk_id, rank, similarity)
-                   VALUES (%s, %s, %s, %s)""",
-                (assistant_message_id, r.chunk_id, rank, r.similarity),
+                """INSERT INTO citation (tenant_id, message_id, chunk_id, rank, similarity)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (tenant_id, assistant_message_id, r.chunk_id, rank, r.similarity),
             )
         cur.close()
     t4 = time.perf_counter()

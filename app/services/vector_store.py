@@ -22,7 +22,7 @@ class SearchResult:
 
 
 class VectorStore(Protocol):
-    def search(self, query_vector: list[float], top_k: int = 5) -> list[SearchResult]: ...
+    def search(self, tenant_id: int, query_vector: list[float], top_k: int = 5) -> list[SearchResult]: ...
 
 
 def _cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -36,9 +36,12 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 
 class MySQLVectorStore:
     """Brute-force cosine similarity, computed in Python over rows pulled
-    from MySQL. Only reads chunks belonging to 'ready' documents."""
+    from MySQL. Only reads chunks belonging to `tenant_id`'s 'ready'
+    documents — WBS 3.2: this used to scan every tenant's chunks, which
+    meant tenant A's questions could get answered (and cited!) from
+    tenant B's knowledge base."""
 
-    def search(self, query_vector: list[float], top_k: int = 5) -> list[SearchResult]:
+    def search(self, tenant_id: int, query_vector: list[float], top_k: int = 5) -> list[SearchResult]:
         with get_cursor() as cur:
             cur.execute(
                 """
@@ -46,8 +49,9 @@ class MySQLVectorStore:
                 FROM embedding e
                 JOIN document_chunk dc ON dc.id = e.chunk_id
                 JOIN document d ON d.id = dc.document_id
-                WHERE d.status = 'ready'
-                """
+                WHERE e.tenant_id = %s AND d.status = 'ready'
+                """,
+                (tenant_id,),
             )
             rows = cur.fetchall()
 

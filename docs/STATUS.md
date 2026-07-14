@@ -5,9 +5,8 @@
 
 ## Current phase
 
-**Phase 1 — Round 8 complete (3.1 fully wired into every route,
-reconciled with a competing implementation). Data NOT yet isolated by
-query — see 3.2. Next: 3.2 (retrofit queries to filter by tenant_id).**
+**Phase 1 — Round 9 complete (3.2: query retrofit). 3.0 Data Isolation
+Enforcement done. Next: 3.3 (automated cross-tenant access tests).**
 
 ## Phase progress
 
@@ -275,6 +274,73 @@ query — see 3.2. Next: 3.2 (retrofit queries to filter by tenant_id).**
   that *does* get through, e.g. `list_documents()` for a legitimate
   admin, still returns every tenant's documents, not just theirs. That
   data-filtering work is next.
+
+### Round 9 — completed 3.2
+- Full checklist pass (per the WBS's own warning that this item is
+  "most likely to reveal missed spots") over every `cur.execute(...)`
+  in `app/api/*` and `app/services/*`:
+  - `vector_store.py`: **the core bug this round exists to fix** —
+    `MySQLVectorStore.search()` had no tenant filter at all, so any
+    tenant's question could get answered (and cited!) using another
+    tenant's private knowledge base. Now filters on `e.tenant_id`.
+  - `chat.py` service: `ask()` now takes `tenant_id`, threads it onto
+    every `conversation`/`message`/`citation` insert, and — found
+    while doing this, not asked for — guards against cross-tenant
+    conversation hijacking: if a caller supplies a `conversation_id`
+    belonging to a *different* tenant, it's silently discarded and a
+    fresh one is issued instead of writing into the other tenant's
+    thread.
+  - `ingestion.py`: `ingest_document()` now reads `tenant_id` off the
+    `document` row itself and stamps it onto every `document_chunk`/
+    `embedding` row it writes (both are `NOT NULL` since 1.3).
+  - `documents.py`: all 4 routes now filter/scope by `tenant_id`.
+    Found and fixed two real holes while doing this: `reindex_document`
+    and `delete_document` previously operated on `document_id` alone
+    with no ownership check — an admin could reindex or **delete**
+    another tenant's document (and reindex would `DELETE FROM
+    document_chunk WHERE document_id = %s` with no tenant filter,
+    which would have deleted the *other* tenant's chunks). Both now
+    404 if the `document_id` doesn't belong to the resolved tenant,
+    checked *before* any mutation. Also added a check that a supplied
+    `category_id` belongs to the same tenant, rejecting cross-tenant
+    category assignment on upload (400).
+  - `categories.py`: `list`/`create`/`delete` all scoped;
+    `delete_category` now 404s instead of silently no-op'ing on a
+    cross-tenant or nonexistent id.
+  - `auth.py`: intentionally left unscoped — `admin_user` isn't
+    tenant-owned (one admin can belong to several tenants via
+    `tenant_user`), so login/logout correctly query it globally by
+    email/session, not by tenant.
+- Validated well beyond "written and assumed": a direct DB-level test
+  with two tenants holding *identical* embedding vectors, confirming
+  each tenant's search only ever returns its own chunk; `ingest_document`
+  tested with `embed_text` mocked, confirming tenant_id lands on every
+  chunk/embedding row; full `TestClient` runs proving a second tenant
+  can't see, reindex, or delete a first tenant's documents/categories
+  by id-guessing, and can't upload against the first tenant's
+  `category_id`; and a direct test of the conversation-hijack guard —
+  tenant Q handed tenant P's `conversation_id` gets silently issued a
+  new one, zero messages leak into P's thread, and legitimate
+  same-tenant conversation continuation still works.
+- Added `tests/test_query_isolation.py` (4 tests, DB-backed, skips
+  cleanly with no DB) covering all of the above as permanent
+  regression tests, not just one-off validation scripts. Caught my own
+  bug before pushing: the category-isolation test wasn't idempotent —
+  reusing the same test tenant across runs collided with 1.4's new
+  per-tenant unique slug constraint on the second run. Fixed by having
+  the test clean up its own fixture rows first; reran the full suite
+  3x consecutively against the same DB to confirm. Full suite: 18/18
+  passing, repeatably.
+- Also fixed while here: a small doc slip from a previous round — the
+  "Open decisions" header below had been accidentally dropped during
+  an earlier edit; restored it in this same commit.
+- **3.0 Data Isolation Enforcement is now fully done (3.1–3.2).** Next
+  is 3.3 — automated cross-tenant access tests as the *permanent*
+  regression net for 3.2 going forward (this round's tests cover what
+  I thought to check; 3.3 is about making that coverage systematic
+  rather than ad hoc).
+
+## Open decisions / things to confirm before Phase 1 starts
 
 - Multi-tenant isolation strategy: separate DB schema per tenant vs.
   shared schema with `tenant_id` row-level scoping. Recommendation to
