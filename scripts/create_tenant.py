@@ -46,7 +46,7 @@ def create_tenant(name: str, slug: str, owner_email: str | None, owner_password:
         with get_conn() as conn:
             cur = conn.cursor()
             cur.execute(
-                "INSERT INTO tenant (name, slug, plan_tier, status) VALUES (%s, %s, 'free', 'trial')",
+                "INSERT INTO tenant (name, slug, plan_tier, status) VALUES (%s, %s, 'starter', 'trial')",
                 (name, slug),
             )
             tenant_id = cur.lastrowid

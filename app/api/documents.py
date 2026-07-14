@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from app.core.tenant_scope import resolve_tenant_for_admin
 from app.db.pool import get_conn
 from app.services.ingestion import ingest_document
+from app.services.usage import enforce_document_limit
 
 router = APIRouter(prefix="/api/documents", tags=["documents"], dependencies=[Depends(resolve_tenant_for_admin)])
 
@@ -22,6 +23,10 @@ async def upload_document(
     category_id: int | None = None,
     tenant_id: int = Depends(resolve_tenant_for_admin),
 ):
+    # Check BEFORE reading/inserting anything — a tenant at its limit
+    # shouldn't have the upload partially processed first.
+    enforce_document_limit(tenant_id)
+
     raw = (await file.read()).decode("utf-8")
     title = file.filename.rsplit(".", 1)[0]
 

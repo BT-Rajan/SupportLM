@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.tenant_scope import resolve_tenant
 from app.core.theme import resolve_theme
 from app.services.chat import ask
+from app.services.usage import message_limit_warning
 
 router = APIRouter(prefix="/api/chat", tags=["chat"], dependencies=[Depends(resolve_tenant)])
 logger = logging.getLogger("supportlm.chat")
@@ -22,7 +23,11 @@ class ChatRequest(BaseModel):
 def post_chat(req: ChatRequest, tenant_id: int = Depends(resolve_tenant)):
     try:
         agent_name = resolve_theme(tenant_id)["agent_name"]
-        return ask(tenant_id, req.question, req.conversation_id, agent_name=agent_name)
+        result = ask(tenant_id, req.question, req.conversation_id, agent_name=agent_name)
+        # Soft warn only — never blocks the chat, per the owner's
+        # decision that message limits warn rather than reject.
+        result["limit_warning"] = message_limit_warning(tenant_id)
+        return result
     except httpx.HTTPStatusError as exc:
         logger.error("Chat provider HTTP error: %s", exc.response.text[:500])
         raise HTTPException(

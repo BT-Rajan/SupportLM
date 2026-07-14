@@ -5,8 +5,8 @@
 
 ## Current phase
 
-**Phase 1 — Round 11 complete (4.0: branding, done in full — 4.1-4.3).
-Next: 5.1 (needs tier decision from Rajan) or jump ahead to 6.0.**
+**Phase 1 — Round 12 complete (5.0: usage tiers & plan limits, done in
+full — 5.1-5.3). Next: 6.0 Testing & Validation.**
 
 ## Phase progress
 
@@ -466,6 +466,51 @@ Next: 5.1 (needs tier decision from Rajan) or jump ahead to 6.0.**
   input on tier names/limits) or jump to 6.0 Testing & Validation
   since 4.0 and 5.0 don't block each other.
 
+### Round 12 — completed 5.0 (5.1, 5.2, 5.3 together)
+- Owner confirmed tier structure: **Starter** (25 docs / 500 msgs
+  per month / 2 seats), **Pro** (200 / 5,000 / 10), **Enterprise**
+  (unlimited on all three). Enforcement confirmed as: hard block on
+  document upload once at the doc limit, soft warn (never block) on
+  chat once the message limit is hit for the month.
+- **5.1 — tier table**: `migrations/007_plan_tiers.sql` adds `plan_tier`
+  (slug PK, doc_limit/message_limit/seat_limit, NULL = unlimited),
+  seeds the three confirmed rows, remaps the placeholder
+  `plan_tier = 'free'` value (seeded before this table existed) to
+  `'starter'`, then adds the FK `tenant.plan_tier -> plan_tier.slug`.
+  `scripts/create_tenant.py` now inserts `'starter'` for new tenants
+  instead of the old `'free'` literal. Confirmed table documented at
+  `docs/schema/5.1-tier-structure.md`.
+- **5.2/5.3 — counters + enforcement**: `app/services/usage.py`.
+  Counters are live `COUNT(*)` queries (documents by tenant, user-role
+  messages since the start of the calendar month) rather than a
+  maintained counter table — the 1.4 tenant-scoped indexes already
+  make these cheap, and a live count can't drift the way a maintained
+  counter could. A persisted rollup is Phase 7's job (historical
+  trends), not this. `enforce_document_limit()` is called at the top
+  of `POST /api/documents/upload`, before anything is read or written,
+  and raises 403 once the tenant is at `doc_limit`. `message_limit_warning()`
+  is called after `ask()` in `POST /api/chat` and attaches a
+  `limit_warning` string to the response once the tenant has hit
+  `message_limit` for the month — chat is never blocked by it.
+  `count_seats()` exists but isn't wired to any enforcement point yet:
+  nothing in the app creates additional `tenant_user` rows beyond the
+  owner link `create_tenant.py` makes, so there's no call site for a
+  seat check until Phase 2 (RBAC/user management) adds one.
+- Validated beyond unit level: exercised both routes end-to-end via
+  `TestClient` against a real MariaDB instance — a starter tenant
+  seeded with 25 documents got a real 403 with no document inserted as
+  a side effect of the rejected call; a starter tenant seeded with 500
+  messages this month still got a normal 200 chat response with a
+  populated `limit_warning`, confirming the soft-warn path never blocks.
+- Verified idempotency: full 001→007 migration chain applies cleanly on
+  a fresh database, and the full test suite passed on 3 consecutive
+  reruns against the same DB with no cleanup between runs. Full suite:
+  36/36 passing.
+- **5.0 Usage Tiers & Plan Limits is done (5.1–5.3).** Next is 6.0
+  Testing & Validation: 6.1 migration rollback test, 6.2 multi-tenant
+  smoke test, 6.3 full regression pass — the last WBS section before
+  Phase 1 can be marked complete.
+
 ## Open decisions / things to confirm before Phase 1 starts
 
 - Multi-tenant isolation strategy: separate DB schema per tenant vs.
@@ -473,9 +518,6 @@ Next: 5.1 (needs tier decision from Rajan) or jump ahead to 6.0.**
   bring to Phase 1 kickoff: shared schema + `tenant_id` (simpler
   migrations, fine at current scale) unless the owner wants hard
   isolation for compliance reasons — flagged here, not yet decided.
-- Usage tiers/plan limits: need the actual tier names/limits (e.g. doc
-  count, messages/month, seats) before building enforcement — currently
-  just listed as in-scope, not specified.
 - Per-tenant branding: confirm whether this replaces the current
   hardcoded "Support" header or sits alongside a platform-default theme
   for tenants who don't customize.
