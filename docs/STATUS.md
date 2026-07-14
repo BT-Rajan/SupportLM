@@ -5,8 +5,9 @@
 
 ## Current phase
 
-**Phase 1 — Round 7 complete (3.1: request-scoping dependency).
-Next: 3.2 (retrofit existing queries/routes to use it).**
+**Phase 1 — Round 8 complete (3.1 fully wired into every route,
+reconciled with a competing implementation). Data NOT yet isolated by
+query — see 3.2. Next: 3.2 (retrofit queries to filter by tenant_id).**
 
 ## Phase progress
 
@@ -213,7 +214,67 @@ Next: 3.2 (retrofit existing queries/routes to use it).**
   most likely to reveal missed spots per the WBS's own warning — treat
   it as a full checklist pass, not a quick one.
 
-## Open decisions / things to confirm before Phase 1 starts
+### Round 8 — wired 3.1's dependencies into every route
+- **Process note, for the record:** two different sessions independently
+  built 3.1 and both pushed. The other session's `tenant_scope.py`
+  (round 7 above) is the one that stuck — it catches a real gap the
+  other implementation didn't: without the `tenant_user` membership
+  check in `resolve_tenant_for_admin`, an admin who legitimately owns
+  tenant A could visit `/t/{tenant-B-slug}/admin` and pass the tenant
+  gate for tenant B too, since a valid session alone doesn't say which
+  tenant it's for. Reconciled by keeping `tenant_scope.py` as-is and
+  building the route-wiring layer on top of it.
+- Wired `resolve_tenant` / `resolve_tenant_for_admin` into every actual
+  route, matching what each one really needs (not a blanket dependency):
+  - `chat.py`, `auth.py`: router-level `resolve_tenant` (anonymous —
+    login has no session yet to check membership against, and rejecting
+    it would be a different bug).
+  - `documents.py`: router-level `resolve_tenant_for_admin` (all 4
+    routes are admin-only); dropped the now-redundant per-route
+    `require_admin` (membership check needs `require_admin`'s result
+    internally anyway, so it's still enforced, just via one dependency
+    instead of two).
+  - `categories.py`: mixed per-route — `GET` (public listing) uses
+    `resolve_tenant`; `POST`/`DELETE` (writes) use
+    `resolve_tenant_for_admin`.
+  - `main.py`: both routers and the two page routes (`/t/{slug}/`,
+    `/t/{slug}/admin`) moved under `/t/{tenant_slug}`. The admin *page*
+    route deliberately uses `resolve_tenant`, not the admin variant —
+    it just serves the login-form/dashboard HTML shell; requiring a
+    valid session to view it would mean you couldn't reach the login
+    form. Bare `/` now 404s pointing at the tenant-scoped shape.
+- Updated `templates/chat.html`/`admin.html` to inject
+  `window.TENANT_SLUG`, and `static/js/chat.js`/`admin.js` to prefix
+  every fetch call with `/t/${TENANT_SLUG}` (chat send, login, logout,
+  categories, documents, upload) — the frontend actually still works
+  end-to-end under the new URL scheme, not just the backend routes.
+- Validated against a real MariaDB-backed app via `TestClient`,
+  including the specific scenario this reconciliation exists for:
+  logged in as an admin linked to `acme-corp` and `beta-inc` — both
+  succeed (200); the same session against `no-owner-yet` (not linked)
+  correctly 403s with "You do not have access to this tenant." on both
+  a read and a write route. Also re-confirmed: unscoped `/` → 404,
+  unknown slug → 404, suspended tenant blocks anonymous *and* admin
+  routes (including a linked admin), no-session admin routes → 401,
+  active/trial tenants render correctly with the right `TENANT_SLUG`.
+- Added `tests/test_tenant_resolution.py` (8 tests, DB-backed, skips
+  cleanly with no DB configured) covering all of the above, including
+  the cross-tenant block and suspension-overrides-membership cases.
+  Full suite: 14/14 passing.
+- One unrelated thing surfaced during testing, not a regression: `POST
+  /api/chat` 500s in this sandbox because `sentence_transformers` isn't
+  installed here (it's a lazy import in `llm_client.py`, real installs
+  have it per `requirements.txt`) — tenant resolution itself ran
+  correctly and reached the handler before hitting that unrelated
+  missing dependency.
+- **3.1 is now fully done, including the route-wiring the WBS's own
+  ordering had deferred to 3.2.** What's left for 3.2 specifically:
+  the actual SQL `WHERE tenant_id = %s` filtering inside
+  `app/services/*`/`app/api/*` query bodies — right now the gate is
+  correct (wrong tenant can't get past the dependency), but a query
+  that *does* get through, e.g. `list_documents()` for a legitimate
+  admin, still returns every tenant's documents, not just theirs. That
+  data-filtering work is next.
 
 - Multi-tenant isolation strategy: separate DB schema per tenant vs.
   shared schema with `tenant_id` row-level scoping. Recommendation to

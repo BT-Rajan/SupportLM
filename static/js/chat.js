@@ -3,6 +3,11 @@
   let conversationId = null;
   let sourceIdCounter = 0;
 
+  // Set by the server-rendered page (see templates/chat.html) so this
+  // widget knows which tenant it's talking to (WBS 3.1: path-param
+  // tenant resolution — every API call is scoped under /t/{slug}/).
+  const TENANT_BASE = "/t/" + window.TENANT_SLUG;
+
   const log = document.getElementById("chat-log");
   const welcome = document.getElementById("welcome");
   const form = document.getElementById("chat-form");
@@ -122,7 +127,7 @@
     showTyping();
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch(TENANT_BASE + "/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: question, conversation_id: conversationId }),

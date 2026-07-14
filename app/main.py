@@ -1,22 +1,33 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
 from app.api import auth, categories, chat, documents
+from app.core.tenant_scope import resolve_tenant
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("supportlm")
 
-app = FastAPI(title="KnowledgeLM", version="0.1.0")
+app = FastAPI(title="SupportLM", version="0.2.0")
 
-app.include_router(chat.router)
-app.include_router(documents.router)
-app.include_router(categories.router)
-app.include_router(auth.router)
+# WBS 3.1/3.2: every tenant-scoped route lives under /t/{tenant_slug}/...
+# Each router declares its own resolve_tenant / resolve_tenant_for_admin
+# dependency (see app/core/tenant_scope.py) matching what that router's
+# routes actually need — not a single blanket dependency here, since
+# some routes are anonymous (chat, category listing) and some require
+# the logged-in admin to be linked to that specific tenant (documents,
+# category writes). `/health` is the only unscoped route — it's infra,
+# not tenant data.
+TENANT_PREFIX = "/t/{tenant_slug}"
+
+app.include_router(chat.router, prefix=TENANT_PREFIX)
+app.include_router(documents.router, prefix=TENANT_PREFIX)
+app.include_router(categories.router, prefix=TENANT_PREFIX)
+app.include_router(auth.router, prefix=TENANT_PREFIX)
 
 
 @app.exception_handler(Exception)
@@ -38,10 +49,30 @@ def health():
 
 
 @app.get("/")
-def index(request: Request):
-    return templates.TemplateResponse("chat.html", {"request": request})
+def root():
+    # No tenant in the URL here — nothing to resolve. Point at the
+    # tenant-scoped shape rather than guessing or serving a default.
+    raise HTTPException(
+        status_code=404,
+        detail="Specify a tenant, e.g. /t/{your-tenant-slug}/",
+    )
 
 
-@app.get("/admin")
-def admin(request: Request):
-    return templates.TemplateResponse("admin.html", {"request": request})
+@app.get("/t/{tenant_slug}/")
+def index(request: Request, tenant_slug: str, tenant_id: int = Depends(resolve_tenant)):
+    # Anonymous page (the chat widget) — resolve_tenant, not the admin
+    # variant: 404/403 for an unknown/suspended tenant, no session
+    # required, same as the /api/chat route this page calls into.
+    return templates.TemplateResponse("chat.html", {"request": request, "tenant_slug": tenant_slug})
+
+
+@app.get("/t/{tenant_slug}/admin")
+def admin(request: Request, tenant_slug: str, tenant_id: int = Depends(resolve_tenant)):
+    # Also resolve_tenant, not resolve_tenant_for_admin: this route just
+    # serves the HTML shell (login form + dashboard markup) — the page
+    # itself decides client-side whether to show the login form or the
+    # dashboard. Requiring admin+membership here would 401 a visitor
+    # before they ever see the login form. The actual admin data lives
+    # behind /api/documents and the write endpoints on /api/categories,
+    # which DO require resolve_tenant_for_admin.
+    return templates.TemplateResponse("admin.html", {"request": request, "tenant_slug": tenant_slug})

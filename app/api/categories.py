@@ -3,7 +3,7 @@ import re
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from app.core.deps import require_admin
+from app.core.tenant_scope import resolve_tenant, resolve_tenant_for_admin
 from app.db.pool import get_conn
 
 router = APIRouter(prefix="/api/categories", tags=["categories"])
@@ -24,7 +24,7 @@ def _slugify(name: str) -> str:
     return slug or "category"
 
 
-@router.get("", response_model=list[CategoryOut])
+@router.get("", response_model=list[CategoryOut], dependencies=[Depends(resolve_tenant)])
 def list_categories():
     with get_conn() as conn:
         cur = conn.cursor()
@@ -34,7 +34,7 @@ def list_categories():
     return [CategoryOut(**row) for row in rows]
 
 
-@router.post("", response_model=CategoryOut, dependencies=[Depends(require_admin)])
+@router.post("", response_model=CategoryOut, dependencies=[Depends(resolve_tenant_for_admin)])
 def create_category(req: CategoryIn):
     slug = _slugify(req.name)
     with get_conn() as conn:
@@ -45,7 +45,7 @@ def create_category(req: CategoryIn):
     return CategoryOut(id=category_id, name=req.name, slug=slug)
 
 
-@router.delete("/{category_id}", dependencies=[Depends(require_admin)])
+@router.delete("/{category_id}", dependencies=[Depends(resolve_tenant_for_admin)])
 def delete_category(category_id: int):
     with get_conn() as conn:
         cur = conn.cursor()

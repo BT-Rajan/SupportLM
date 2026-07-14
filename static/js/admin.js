@@ -3,8 +3,13 @@
   const loginView = document.getElementById("login-view");
   const dashboardView = document.getElementById("dashboard-view");
 
+  // Set by the server-rendered page (see templates/admin.html) so this
+  // dashboard knows which tenant it's managing (WBS 3.1: path-param
+  // tenant resolution — every API call is scoped under /t/{slug}/).
+  const TENANT_BASE = "/t/" + window.TENANT_SLUG;
+
   async function api(path, options = {}) {
-    const res = await fetch(path, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
+    const res = await fetch(TENANT_BASE + path, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
     if (res.status === 401) {
       showLogin();
       throw new Error("Not authenticated");
@@ -29,7 +34,7 @@
     e.preventDefault();
     const email = document.getElementById("login-email").value;
     const password = document.getElementById("login-password").value;
-    const res = await fetch("/api/auth/login", {
+    const res = await fetch(TENANT_BASE + "/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -42,7 +47,7 @@
   });
 
   document.getElementById("logout-btn").addEventListener("click", async function () {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch(TENANT_BASE + "/api/auth/logout", { method: "POST" });
     showLogin();
   });
 
@@ -124,7 +129,7 @@
     const formData = new FormData();
     formData.append("file", fileInput.files[0]);
 
-    const url = "/api/documents/upload" + (categoryId ? `?category_id=${categoryId}` : "");
+    const url = TENANT_BASE + "/api/documents/upload" + (categoryId ? `?category_id=${categoryId}` : "");
     const res = await fetch(url, { method: "POST", body: formData });
     if (res.status === 401) return showLogin();
 

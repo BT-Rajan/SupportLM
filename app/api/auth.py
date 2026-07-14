@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 
 from app.core.security import create_session_token, verify_password
+from app.core.tenant_scope import resolve_tenant
 from app.db.pool import get_conn
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix="/api/auth", tags=["auth"], dependencies=[Depends(resolve_tenant)])
 
 
 class LoginRequest(BaseModel):

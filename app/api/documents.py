@@ -1,11 +1,11 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile
 from pydantic import BaseModel
 
-from app.core.deps import require_admin
+from app.core.tenant_scope import resolve_tenant_for_admin
 from app.db.pool import get_conn
 from app.services.ingestion import ingest_document
 
-router = APIRouter(prefix="/api/documents", tags=["documents"])
+router = APIRouter(prefix="/api/documents", tags=["documents"], dependencies=[Depends(resolve_tenant_for_admin)])
 
 
 class DocumentOut(BaseModel):
@@ -15,7 +15,7 @@ class DocumentOut(BaseModel):
     error_message: str | None = None
 
 
-@router.post("/upload", response_model=DocumentOut, dependencies=[Depends(require_admin)])
+@router.post("/upload", response_model=DocumentOut)
 async def upload_document(file: UploadFile, background_tasks: BackgroundTasks, category_id: int | None = None):
     raw = (await file.read()).decode("utf-8")
     title = file.filename.rsplit(".", 1)[0]
@@ -34,7 +34,7 @@ async def upload_document(file: UploadFile, background_tasks: BackgroundTasks, c
     return DocumentOut(id=document_id, title=title, status="pending")
 
 
-@router.get("", response_model=list[DocumentOut], dependencies=[Depends(require_admin)])
+@router.get("", response_model=list[DocumentOut])
 def list_documents():
     with get_conn() as conn:
         cur = conn.cursor()
@@ -44,7 +44,7 @@ def list_documents():
     return [DocumentOut(**row) for row in rows]
 
 
-@router.post("/{document_id}/reindex", response_model=DocumentOut, dependencies=[Depends(require_admin)])
+@router.post("/{document_id}/reindex", response_model=DocumentOut)
 def reindex_document(document_id: int, background_tasks: BackgroundTasks):
     with get_conn() as conn:
         cur = conn.cursor()
@@ -61,7 +61,7 @@ def reindex_document(document_id: int, background_tasks: BackgroundTasks):
     return DocumentOut(**row)
 
 
-@router.delete("/{document_id}", dependencies=[Depends(require_admin)])
+@router.delete("/{document_id}")
 def delete_document(document_id: int):
     with get_conn() as conn:
         cur = conn.cursor()
