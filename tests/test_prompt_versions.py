@@ -152,7 +152,7 @@ def test_ask_uses_tenant_active_prompt_when_configured():
     captured = {}
 
     class _StubProvider:
-        def chat_completion(self, system_prompt, user_message):
+        def chat_completion(self, system_prompt, history, user_message):
             captured["system_prompt"] = system_prompt
             return "stubbed answer"
 
@@ -175,7 +175,7 @@ def test_ask_falls_back_to_default_prompt_when_unconfigured():
     captured = {}
 
     class _StubProvider:
-        def chat_completion(self, system_prompt, user_message):
+        def chat_completion(self, system_prompt, history, user_message):
             captured["system_prompt"] = system_prompt
             return "stubbed answer"
 

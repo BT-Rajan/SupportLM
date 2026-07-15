@@ -1,4 +1,5 @@
-"""Pluggable chat-completion providers (Phase 4 — 2.0).
+"""Pluggable chat-completion providers (Phase 4 — 2.0, extended in
+Phase 5 — 1.3 for multi-turn history).
 
 Mirrors the VectorStore protocol pattern in vector_store.py: one small
 interface, one implementation class per provider, and a resolver
@@ -15,6 +16,13 @@ DeepSeek and OpenAI happen to share a shape today, but Anthropic's
 messages-array entry; response content is a list of blocks, not a
 single message string), so hard-coding that assumption into a shared
 base would break the moment any provider's API changes independently.
+
+`history` (Phase 5 — 1.3): an ordered list of
+`{"role": "user"|"assistant", "content": str}` dicts — every prior turn
+of the conversation, oldest first. DeepSeek/OpenAI splice it into the
+`messages` array between the system message and the new user message;
+Anthropic does the same into its own `messages` array, with `system`
+staying a top-level field exactly as it already was.
 """
 import httpx
 
@@ -23,7 +31,7 @@ from app.db.pool import get_cursor
 
 
 class ChatProvider:
-    def chat_completion(self, system_prompt: str, user_message: str) -> str:
+    def chat_completion(self, system_prompt: str, history: list[dict], user_message: str) -> str:
         raise NotImplementedError
 
 
@@ -34,7 +42,7 @@ class DeepSeekProvider(ChatProvider):
         self._api_key = api_key
         self._model = model
 
-    def chat_completion(self, system_prompt: str, user_message: str) -> str:
+    def chat_completion(self, system_prompt: str, history: list[dict], user_message: str) -> str:
         resp = httpx.post(
             self._URL,
             headers={"Authorization": f"Bearer {self._api_key}"},
@@ -42,6 +50,7 @@ class DeepSeekProvider(ChatProvider):
                 "model": self._model,
                 "messages": [
                     {"role": "system", "content": system_prompt},
+                    *history,
                     {"role": "user", "content": user_message},
                 ],
             },
@@ -58,7 +67,7 @@ class OpenAIProvider(ChatProvider):
         self._api_key = api_key
         self._model = model
 
-    def chat_completion(self, system_prompt: str, user_message: str) -> str:
+    def chat_completion(self, system_prompt: str, history: list[dict], user_message: str) -> str:
         resp = httpx.post(
             self._URL,
             headers={"Authorization": f"Bearer {self._api_key}"},
@@ -66,6 +75,7 @@ class OpenAIProvider(ChatProvider):
                 "model": self._model,
                 "messages": [
                     {"role": "system", "content": system_prompt},
+                    *history,
                     {"role": "user", "content": user_message},
                 ],
             },
@@ -83,7 +93,7 @@ class AnthropicProvider(ChatProvider):
         self._api_key = api_key
         self._model = model
 
-    def chat_completion(self, system_prompt: str, user_message: str) -> str:
+    def chat_completion(self, system_prompt: str, history: list[dict], user_message: str) -> str:
         resp = httpx.post(
             self._URL,
             headers={
@@ -95,7 +105,7 @@ class AnthropicProvider(ChatProvider):
                 "model": self._model,
                 "max_tokens": 1024,
                 "system": system_prompt,
-                "messages": [{"role": "user", "content": user_message}],
+                "messages": [*history, {"role": "user", "content": user_message}],
             },
             timeout=60.0,
         )

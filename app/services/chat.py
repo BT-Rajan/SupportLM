@@ -36,15 +36,63 @@ def _render_system_prompt(template: str, agent_name: str, context: str) -> str:
         return f"{template}\n\nContext:\n{context}"
 
 
+def _fetch_history(conn, tenant_id: int, conversation_id: str | None) -> list[dict]:
+    """Every prior message for this conversation, oldest first, as
+    {"role", "content"} dicts ready for a provider's messages array.
+    Empty list for a brand-new conversation (no conversation_id yet, or
+    one that doesn't belong to this tenant — same cross-tenant guard
+    `ask()` already applies to conversation_id reuse elsewhere in this
+    function)."""
+    if not conversation_id:
+        return []
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT role, content FROM message
+           WHERE tenant_id = %s AND conversation_id = %s
+           ORDER BY created_at ASC""",
+        (tenant_id, conversation_id),
+    )
+    rows = cur.fetchall()
+    cur.close()
+    return [{"role": row["role"], "content": row["content"]} for row in rows]
+
+
 def ask(tenant_id: int, question: str, conversation_id: str | None, agent_name: str = "Assistant") -> dict:
     t0 = time.perf_counter()
-    query_vector = embed_text(question)
+
+    # Phase 5 — 1.1: fetch full prior history before retrieval — used
+    # in BOTH the retrieval query (1.2) and the answer call (1.4), per
+    # the owner's "full history, no cap" kickoff decision. Cross-tenant
+    # conversation_id reuse is guarded the same way it already is
+    # further down for the DB write path — a conversation_id belonging
+    # to another tenant must not leak that tenant's history here either.
+    with get_conn() as history_conn:
+        cur = history_conn.cursor()
+        if conversation_id:
+            cur.execute("SELECT tenant_id FROM conversation WHERE id = %s", (conversation_id,))
+            existing = cur.fetchone()
+            if existing and existing["tenant_id"] != tenant_id:
+                conversation_id = None
+        cur.close()
+        history = _fetch_history(history_conn, tenant_id, conversation_id)
+
+    # Phase 5 — 1.2: retrieval uses the full transcript, not just the
+    # latest question — folded into one string for both the keyword
+    # search text and the text that gets embedded for semantic search.
+    # embed_text() and MySQL's MATCH() each have their own practical
+    # limits on how much of this they actually use (see docs/Phase V
+    # WBS.md's risk note) — accepted, not worked around, per the
+    # owner's explicit "no cap" decision.
+    transcript = "\n".join(f"{turn['role']}: {turn['content']}" for turn in history)
+    retrieval_query = f"{transcript}\nuser: {question}" if transcript else question
+
+    query_vector = embed_text(retrieval_query)
     t1 = time.perf_counter()
 
     # Phase 4 — 1.4: hybrid_search() replaces the raw semantic-only
     # MySQLVectorStore.search() call, fusing it with FULLTEXT keyword
     # search per the owner's kickoff decision (weighted blend, not RRF).
-    results = hybrid_search(tenant_id, question, query_vector, top_k=5)
+    results = hybrid_search(tenant_id, retrieval_query, query_vector, top_k=5)
     t2 = time.perf_counter()
 
     context = "\n\n---\n\n".join(
@@ -60,23 +108,17 @@ def ask(tenant_id: int, question: str, conversation_id: str | None, agent_name: 
     # module-level chat_completion() call, which was hard-wired to
     # DeepSeek regardless of tenant.
     provider = get_provider(tenant_id)
-    answer = provider.chat_completion(system_prompt, question)
+    answer = provider.chat_completion(system_prompt, history, question)
     t3 = time.perf_counter()
 
     with get_conn() as conn:
         cur = conn.cursor()
 
-        # If a conversation_id was supplied, only reuse it if it already
-        # belongs to this tenant — otherwise silently start a fresh one.
-        # Without this, a caller could pass another tenant's
-        # conversation_id and have their messages/citations attached to
-        # it (or read its history back via the conversation_id they'd
-        # then know).
-        if conversation_id:
-            cur.execute("SELECT tenant_id FROM conversation WHERE id = %s", (conversation_id,))
-            existing = cur.fetchone()
-            if existing and existing["tenant_id"] != tenant_id:
-                conversation_id = None
+        # conversation_id was already resolved/guarded against
+        # cross-tenant reuse earlier in this function (Phase 5 — 1.1's
+        # history fetch needed that same check first) — no need to
+        # repeat the SELECT here, just assign a fresh id if it's still
+        # empty (brand-new conversation, or one that got nulled above).
         conversation_id = conversation_id or str(uuid.uuid4())
 
         cur.execute(

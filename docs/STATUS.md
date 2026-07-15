@@ -5,11 +5,11 @@
 
 ## Current phase
 
-**Phase 5 — Round 25 complete (planning). `docs/Phase V WBS.md`
-written; 1.1 (fetch conversation history in `ask()`) is next.** Phase 4
-is complete (see above). Phase 3 is marked complete per owner
-confirmation — see the Round 21 note below for what this session
-could and couldn't independently verify.
+**Phase 5 — Round 26 complete. 1.0 Multi-turn Memory done (1.1-1.4).
+2.0 Multi-language Support is next.** Phase 4 is complete (see above).
+Phase 3 is marked complete per owner confirmation — see the Round 21
+note below for what this session could and couldn't independently
+verify.
 
 ## Phase progress
 
@@ -1083,6 +1083,50 @@ could and couldn't independently verify.
 - **Phase 5 planning is done.** Starting 1.1 (fetch conversation
   history in `ask()`) next.
 
+### Round 26 — completed 1.0 Multi-turn Memory (1.1-1.4)
+- **1.1 — fetch history**: new `_fetch_history()` in
+  `app/services/chat.py` — every prior `message` row for the
+  conversation, oldest first. Cross-tenant `conversation_id` reuse is
+  guarded **once**, at the top of `ask()`, before history is fetched —
+  the old duplicate guard further down (right before the DB write) was
+  removed as dead weight now that the same check already ran earlier
+  in the same call.
+- **1.2 — retrieval folds in the full transcript**: the text passed to
+  `hybrid_search()` (both its keyword and semantic sides) is now the
+  entire prior transcript concatenated with the current question, not
+  the bare question alone — per the owner's "full history, no cap"
+  kickoff decision. The three practical ceilings this runs into
+  (embedding truncation, FULLTEXT relevance degradation, provider
+  context limits) are exactly what `docs/Phase V WBS.md` flagged as
+  accepted-not-fixed, not new problems found during the build.
+- **1.3 — `ChatProvider` protocol gains real multi-turn support**:
+  `chat_completion(system_prompt, user_message)` →
+  `chat_completion(system_prompt, history, user_message)` across the
+  base class and all three implementations. DeepSeek/OpenAI splice
+  `history` into their `messages` array between the system message and
+  the new user message; Anthropic does the same into its own
+  `messages` array, `system` staying a top-level field exactly as
+  before.
+- **1.4 — wired into `ask()`**: `provider.chat_completion(system_prompt,
+  history, question)` replaces the old 2-argument call. Fixed 2 of my
+  own Phase 4 test stubs (`test_prompt_versions.py`) that had an
+  explicit `(self, system_prompt, user_message)` signature and broke
+  immediately on this change — the other existing stubs already used
+  `*a, **kw`/lambdas and needed no changes.
+- `tests/test_multiturn_memory.py` (5 tests): first turn has empty
+  history, second turn's history includes the first turn's real
+  question and the actual stored answer, history comes back oldest-
+  first across three turns, the retrieval-side `embed_text()` call
+  actually receives the folded transcript (verified via a captured
+  side-effect, not just trusting the code path), and cross-tenant
+  `conversation_id` reuse still yields empty history for the "wrong"
+  tenant (no leakage).
+- Full suite run 3 consecutive times against the same DB with no
+  cleanup between runs: **95/95 passing every time**, no regressions
+  anywhere in Phases 1-4.
+- **1.0 Multi-turn Memory is done (1.1-1.4).** Next: 2.0 Multi-language
+  Support.
+
 ## Open decisions / things to confirm during Phase 3
 
 - **3.0 cadence**: manual-trigger was assumed, not confirmed (see
@@ -1101,6 +1145,7 @@ could and couldn't independently verify.
 
 ## Next action
 
-Start Phase 5, Round 26: 1.1 — fetch full conversation history in
-`app/services/chat.py`'s `ask()`, then 1.2 — fold that history into
-the text/vector passed to `hybrid_search()`.
+Start Phase 5, Round 27: 2.1 — `migrations/018_conversation_language.sql`
+(`conversation.language`), then 2.2/2.3/2.4 — enforce in the system
+prompt, add the widget language selector, and add `language` to
+`ChatRequest`.
