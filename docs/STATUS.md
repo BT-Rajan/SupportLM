@@ -5,10 +5,10 @@
 
 ## Current phase
 
-**Phase 4 — Round 21 complete (planning). `docs/Phase IV WBS.md`
-written; 1.1 hybrid-search schema is next.** Phase 3 is marked
-complete per owner confirmation — see the Round 21 note below for
-what this session could and couldn't independently verify.
+**Phase 4 — Round 22 complete. 1.0 Hybrid Search done (1.1-1.4); 2.0
+Multi-LLM Provider Support is next.** Phase 3 is marked complete per
+owner confirmation — see the Round 21 note below for what this
+session could and couldn't independently verify.
 
 ## Phase progress
 
@@ -860,6 +860,56 @@ what this session could and couldn't independently verify.
 - **Phase 4 planning is done.** Starting 1.1 (FULLTEXT index migration,
   `015_hybrid_search.sql`) next.
 
+### Round 22 — completed 1.0 Hybrid Search (1.1-1.4)
+- **1.1 — schema**: `migrations/015_hybrid_search.sql` adds a native
+  MySQL/MariaDB `FULLTEXT` index on `document_chunk.content`
+  (`ADD FULLTEXT INDEX IF NOT EXISTS`, same idempotency pattern as
+  `005_tenant_scoped_indexes.sql`). InnoDB has supported FULLTEXT
+  natively since MariaDB 10.0.5 — no engine change needed.
+- **1.2 — keyword search**: `keyword_search()` in
+  `app/services/vector_store.py` — `MATCH(content) AGAINST (%s IN
+  NATURAL LANGUAGE MODE)`, tenant- and `status='ready'`-scoped
+  identically to the existing semantic search (WBS 3.2's isolation
+  rule applies here too — a keyword path is just as capable of
+  leaking cross-tenant content as the vector one if left unscoped).
+- **1.3 — score fusion**: `hybrid_search()` — pulls a wider pool
+  (default 20) from each side, independently min-max normalizes each
+  side's scores to [0,1], blends via `(1-keyword_weight) * semantic +
+  keyword_weight * keyword` per the owner's kickoff decision (weighted
+  blend, not RRF). Found and documented a real normalization edge
+  case while testing: with only 2-3 candidates, min-max normalization
+  can push a close-second score all the way to 0, which is why the
+  pool is deliberately wider than `top_k` before normalizing/blending
+  — normalizing only the narrow top_k slice from each side would make
+  this worse, not better.
+- **1.4 — wired into `ask()`**: `app/services/chat.py` calls
+  `hybrid_search()` instead of a raw `MySQLVectorStore.search()` call.
+  Removed the module-level `_store` from `chat.py` (dead now that
+  `hybrid_search()` owns its own semantic-store instance internally in
+  `vector_store.py`, added as `_semantic_store` there).
+- `tests/test_hybrid_search.py` added: keyword-search tenant isolation,
+  no-match returns empty, pure-semantic at `keyword_weight=0`,
+  pure-keyword at `keyword_weight=1`, mid-blend surfaces a
+  strong-on-both chunk above a strong-on-one-signal-only chunk, and
+  hybrid-search tenant isolation. Caught my own non-idempotency bug
+  before it became a flaky-test problem: initial version reused fixed
+  tenant slugs across runs without clearing prior chunks, so a rerun
+  against the same DB accumulated content and broke the small-exact-pool
+  assumptions several tests rely on — same pitfall Round 9 hit with the
+  category-isolation test. Fixed with a `_reset_tenant_content()`
+  helper that clears each fixture tenant's documents (cascading to
+  chunks/embeddings) before reseeding.
+- Validated against a real MariaDB instance: full `001`→`015` migration
+  chain applies cleanly on a fresh database, `015` confirmed
+  independently re-runnable, a seeded `MATCH() AGAINST()` query
+  correctly ranked a relevant chunk above an irrelevant one before any
+  Python code was even involved. Full suite run 3 consecutive times
+  against the same DB with no cleanup between runs: **64/64 passing
+  every time**, no regressions anywhere in Phases 1-3.
+- **1.0 Hybrid Search is done (1.1-1.4).** Next: 2.0 Multi-LLM Provider
+  Support — `ChatProvider` protocol + DeepSeek/OpenAI/Anthropic
+  implementations, selected per-tenant.
+
 ## Open decisions / things to confirm during Phase 3
 
 - **3.0 cadence**: manual-trigger was assumed, not confirmed (see
@@ -878,6 +928,7 @@ what this session could and couldn't independently verify.
 
 ## Next action
 
-Start Phase 4, Round 22: 1.1 — `migrations/015_hybrid_search.sql`
-(adds a MySQL `FULLTEXT` index on `document_chunk.content`), then 1.2
-— `keyword_search()` in `app/services/vector_store.py`.
+Start Phase 4, Round 23: 2.1 — `migrations/016_llm_provider_config.sql`
+(`tenant_llm_config` table), then 2.2 — `ChatProvider` protocol in
+`app/core/llm_providers.py` with `DeepSeekProvider`/`OpenAIProvider`/
+`AnthropicProvider`.

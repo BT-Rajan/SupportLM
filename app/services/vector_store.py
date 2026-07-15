@@ -71,3 +71,112 @@ class MySQLVectorStore:
 
         scored.sort(key=lambda r: r.similarity, reverse=True)
         return scored[:top_k]
+
+
+# Module-level instance so hybrid_search() (and any other future
+# caller in this file) doesn't need chat.py's own `_store` — that one
+# stays private to chat.py, this one is this module's own.
+_semantic_store = MySQLVectorStore()
+
+
+def keyword_search(tenant_id: int, query: str, top_k: int = 5) -> list[SearchResult]:
+    """MySQL FULLTEXT natural-language search over document_chunk.content.
+
+    Phase 4 — 1.2. Same tenant/status scoping as MySQLVectorStore.search()
+    (WBS 3.2's isolation rule applies here too — a keyword search is just
+    as capable of leaking cross-tenant content as a vector one if left
+    unscoped). Returns SearchResult with `similarity` holding the raw
+    MySQL MATCH() relevance score (NOT comparable to cosine similarity —
+    1.3's hybrid_search() normalizes both independently before blending).
+    """
+    with get_cursor() as cur:
+        cur.execute(
+            """
+            SELECT dc.id AS chunk_id, dc.document_id, dc.content, dc.heading_path,
+                   MATCH(dc.content) AGAINST (%s IN NATURAL LANGUAGE MODE) AS relevance
+            FROM document_chunk dc
+            JOIN document d ON d.id = dc.document_id
+            WHERE dc.tenant_id = %s AND d.status = 'ready'
+              AND MATCH(dc.content) AGAINST (%s IN NATURAL LANGUAGE MODE) > 0
+            ORDER BY relevance DESC
+            LIMIT %s
+            """,
+            (query, tenant_id, query, top_k),
+        )
+        rows = cur.fetchall()
+
+    return [
+        SearchResult(
+            chunk_id=row["chunk_id"],
+            document_id=row["document_id"],
+            content=row["content"],
+            heading_path=row["heading_path"],
+            similarity=float(row["relevance"]),
+        )
+        for row in rows
+    ]
+
+
+def _min_max_normalize(values: list[float]) -> list[float]:
+    if not values:
+        return []
+    lo, hi = min(values), max(values)
+    if hi == lo:
+        # All equal (including the single-value and all-zero cases) —
+        # every candidate is equally relevant on this signal, so give
+        # each a neutral, non-zero score rather than dividing by zero.
+        return [1.0 for _ in values]
+    return [(v - lo) / (hi - lo) for v in values]
+
+
+def hybrid_search(
+    tenant_id: int,
+    query: str,
+    query_vector: list[float],
+    top_k: int = 5,
+    keyword_weight: float = 0.3,
+    semantic_pool: int = 20,
+    keyword_pool: int = 20,
+) -> list[SearchResult]:
+    """Phase 4 — 1.3: fuse semantic (cosine) and keyword (FULLTEXT)
+    search via a weighted blend of independently min-max-normalized
+    scores. NOT reciprocal rank fusion — the owner explicitly chose a
+    score blend at Phase 4 kickoff (docs/Phase IV WBS.md).
+
+    Each side is pulled with its own wider pool (`semantic_pool`/
+    `keyword_pool`, default 20) before normalizing and blending, so a
+    chunk that ranks outside the final top_k on one signal alone but
+    strong on the other still has a chance to surface — normalizing
+    only the top_k from each side would silently exclude anything not
+    already in both narrow slices.
+
+    `keyword_weight` in [0, 1]: 0 disables keyword's contribution
+    (pure semantic), 1 disables semantic's contribution (pure keyword)
+    — useful for isolating each signal in tests.
+    """
+    semantic_results = _semantic_store.search(tenant_id, query_vector, top_k=semantic_pool)
+    keyword_results = keyword_search(tenant_id, query, top_k=keyword_pool)
+
+    semantic_scores = _min_max_normalize([r.similarity for r in semantic_results])
+    keyword_scores = _min_max_normalize([r.similarity for r in keyword_results])
+
+    by_chunk: dict[int, SearchResult] = {}
+    semantic_norm: dict[int, float] = {}
+    keyword_norm: dict[int, float] = {}
+
+    for r, s in zip(semantic_results, semantic_scores):
+        by_chunk[r.chunk_id] = r
+        semantic_norm[r.chunk_id] = s
+    for r, s in zip(keyword_results, keyword_scores):
+        by_chunk.setdefault(r.chunk_id, r)
+        keyword_norm[r.chunk_id] = s
+
+    fused: list[tuple[float, SearchResult]] = []
+    for chunk_id, result in by_chunk.items():
+        sem = semantic_norm.get(chunk_id, 0.0)
+        kw = keyword_norm.get(chunk_id, 0.0)
+        final_score = (1 - keyword_weight) * sem + keyword_weight * kw
+        fused.append((final_score, result))
+
+    fused.sort(key=lambda pair: pair[0], reverse=True)
+    return [result for _, result in fused[:top_k]]

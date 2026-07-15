@@ -4,7 +4,7 @@ import uuid
 
 from app.core.llm_client import chat_completion, embed_text
 from app.db.pool import get_conn
-from app.services.vector_store import MySQLVectorStore
+from app.services.vector_store import hybrid_search
 
 logger = logging.getLogger("supportlm.chat")
 
@@ -14,15 +14,16 @@ _SYSTEM_PROMPT = (
     "say you don't know rather than guessing.\n\nContext:\n{context}"
 )
 
-_store = MySQLVectorStore()
-
 
 def ask(tenant_id: int, question: str, conversation_id: str | None, agent_name: str = "Assistant") -> dict:
     t0 = time.perf_counter()
     query_vector = embed_text(question)
     t1 = time.perf_counter()
 
-    results = _store.search(tenant_id, query_vector, top_k=5)
+    # Phase 4 — 1.4: hybrid_search() replaces the raw semantic-only
+    # MySQLVectorStore.search() call, fusing it with FULLTEXT keyword
+    # search per the owner's kickoff decision (weighted blend, not RRF).
+    results = hybrid_search(tenant_id, question, query_vector, top_k=5)
     t2 = time.perf_counter()
 
     context = "\n\n---\n\n".join(
