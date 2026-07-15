@@ -5,8 +5,10 @@
 
 ## Current phase
 
-**Phase 3 — Round 20 complete (planning). `docs/Phase III WBS.md`
-written; 1.0 Content Review Workflow is next.**
+**Phase 4 — Round 21 complete (planning). `docs/Phase IV WBS.md`
+written; 1.1 hybrid-search schema is next.** Phase 3 is marked
+complete per owner confirmation — see the Round 21 note below for
+what this session could and couldn't independently verify.
 
 ## Phase progress
 
@@ -14,8 +16,8 @@ written; 1.0 Content Review Workflow is next.**
 |-------|-----------------------------------------|-------------|
 | 1     | Multi-tenancy & Org Foundation           | Complete (6.0 skipped by owner decision) |
 | 2     | Access Control & Anonymous-Chat Email    | Complete    |
-| 3     | Knowledge Base Management                | In progress (planning) |
-| 4     | Retrieval & Answer Quality                | Not started |
+| 3     | Knowledge Base Management                | Complete (per owner confirmation; 1.0-6.0 build not in this repo's round log — see Round 21 note) |
+| 4     | Retrieval & Answer Quality                | In progress (planning) |
 | 5     | Conversation Experience                   | Not started |
 | 6     | Escalation to Service Request (SR)        | Not started |
 | 7     | Analytics & Reporting                     | Not started |
@@ -810,6 +812,53 @@ written; 1.0 Content Review Workflow is next.**
 - **Phase 3 planning is done.** Starting 1.1 (review-state migration)
   next, same discipline as every prior phase kickoff.
 
+### Round 21 — Phase 3 status reconciliation + Phase 4 planning
+- **Discrepancy found and flagged before proceeding**: this session's
+  round log (Round 20) only showed Phase 3 *planning* complete —
+  `docs/Phase III WBS.md` written, kickoff decisions confirmed — with
+  no 1.0-6.0 build rounds logged, no new migrations (012-014) present,
+  and a single commit at `main` HEAD matching exactly the Round 20
+  planning state. Raised this explicitly rather than silently
+  proceeding or silently marking Phase 3 done.
+- **Owner confirmed Phase 3 was completed outside this repo/session.**
+  Per the owner's explicit instruction, proceeding to Phase 4 on that
+  basis. Recorded here rather than quietly editing the phase-progress
+  table with no explanation, so a future session reading this file
+  understands why Phase 3 shows complete with no corresponding round
+  log — this is a known gap in this file's own record, not an
+  oversight to re-investigate.
+- Wrote `docs/Phase IV WBS.md`, breaking the master prompt's Phase 4
+  scope into 1.0 Hybrid Search, 2.0 Multi-LLM Provider Support, 3.0
+  Prompt Versioning, 4.0 Testing & Validation, 5.0 Documentation &
+  Handoff — same shape as Phases 1-3's WBS docs.
+- Confirmed three kickoff decisions directly with the owner rather
+  than assuming: **hybrid search** fuses MySQL `FULLTEXT` keyword
+  search with the existing cosine-similarity vector search via a
+  weighted score blend (not RRF, not a keyword-only fallback);
+  **multi-LLM** supports DeepSeek/OpenAI/Anthropic, selectable
+  **per-tenant** (not a single global default); **prompt versioning**
+  is **per-tenant**, admin-UI-editable, with rollback (not global,
+  not script-only).
+- Read the existing code this phase touches before writing the WBS:
+  `app/services/vector_store.py` (brute-force cosine similarity,
+  `VectorStore` protocol to mirror for the new `ChatProvider`
+  protocol), `app/core/llm_client.py` (today hard-codes DeepSeek's
+  request shape with no provider abstraction — exactly what 2.0
+  replaces), `app/services/chat.py`'s `ask()` (the one function all
+  three WBS sections above ultimately touch, confirmed as the reason
+  3.0 is sequenced last rather than in parallel with 1.0/2.0).
+- Migration numbering confirmed starting at `012`
+  (`012_hybrid_search.sql`, `013_llm_provider_config.sql`,
+  `014_prompt_versions.sql`) — the same numbers Phase 3's WBS had
+  reserved for its own migrations, which were never written since
+  Phase 3's build happened outside this repo. Flagging this explicitly:
+  if Phase 3's actual migrations exist elsewhere under those same
+  numbers, they'll need to be reconciled (renumbered) before Phase 4's
+  migrations can apply — this session has no visibility into that work
+  to check for a collision itself.
+- **Phase 4 planning is done.** Starting 1.1 (FULLTEXT index migration)
+  next.
+
 ## Open decisions / things to confirm during Phase 3
 
 - **3.0 cadence**: manual-trigger was assumed, not confirmed (see
@@ -828,7 +877,10 @@ written; 1.0 Content Review Workflow is next.**
 
 ## Next action
 
-Start Phase 3, Round 21: 1.1 — `migrations/012_document_review_workflow.sql`
-(adds `document.review_state`, backfills existing documents to
-`'published'`) and the corresponding `vector_store.py` retrieval-gate
-change.
+Start Phase 4, Round 22: 1.1 — `migrations/012_hybrid_search.sql`
+(adds a MySQL `FULLTEXT` index on `document_chunk.content`), then 1.2
+— `keyword_search()` in `app/services/vector_store.py`. **Before
+writing this migration**, confirm whether Phase 3's actual
+`012_document_review_workflow.sql` exists in whatever repo/branch its
+build happened in — if so, this phase's migrations need renumbering
+to avoid a collision (see Round 21 note above).
