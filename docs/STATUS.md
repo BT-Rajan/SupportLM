@@ -5,10 +5,12 @@
 
 ## Current phase
 
-**Phase 4 — Round 22 complete. 1.0 Hybrid Search done (1.1-1.4); 2.0
-Multi-LLM Provider Support is next.** Phase 3 is marked complete per
-owner confirmation — see the Round 21 note below for what this
-session could and couldn't independently verify.
+**Phase 4 — Round 23 complete. 2.0 Multi-LLM Provider Support done
+(2.1-2.4; admin UI panel tracked as backlog alongside the existing
+admin console redesign item, not built this round). 3.0 Prompt
+Versioning is next.** Phase 3 is marked complete per owner
+confirmation — see the Round 21 note below for what this session
+could and couldn't independently verify.
 
 ## Phase progress
 
@@ -910,6 +912,77 @@ session could and couldn't independently verify.
   Support — `ChatProvider` protocol + DeepSeek/OpenAI/Anthropic
   implementations, selected per-tenant.
 
+### Round 23 — completed 2.0 Multi-LLM Provider Support (2.1-2.4, UI panel pending)
+- **2.1 — schema**: `migrations/016_llm_provider_config.sql` adds
+  `tenant_llm_config` (1:1 with `tenant`: `provider`
+  `ENUM('deepseek','openai','anthropic')`, `model`, `api_key` NULL).
+  **Flagged explicitly**: `api_key` is stored in **plaintext**, not
+  encrypted — a deliberate scope decision, not an oversight.
+  `docs/MASTER_PROMPT.md` §2.8 explicitly excludes "encryption at
+  rest" and "secrets management overhaul" from this transformation,
+  and a one-way hash (the `api_key` table's own pattern) doesn't work
+  here since this key must be read back in plaintext to actually call
+  the provider. Documented directly in the migration's own header
+  comment so this isn't missed later.
+- **2.2 — provider abstraction**: new `app/core/llm_providers.py` —
+  `ChatProvider` base + `DeepSeekProvider`/`OpenAIProvider`/
+  `AnthropicProvider`, each wrapping that provider's own request/
+  response shape rather than forced into a shared "OpenAI-compatible"
+  base (Anthropic's `/v1/messages` has a genuinely different shape:
+  top-level `system` field, list-of-blocks response). `get_provider
+  (tenant_id)` resolves the tenant's `tenant_llm_config` row, or falls
+  back to the global DeepSeek default (`settings.llm_api_key`/
+  `llm_chat_model`) if the tenant has none — same fallback contract as
+  Phase 1's branding/theme (explicit override, sane default, never
+  inferred). A tenant row with a NULL `api_key` falls back to the
+  *matching* global credential for its chosen provider (new
+  `openai_api_key`/`anthropic_api_key` settings added to
+  `app/core/config.py`), not silently to the DeepSeek key.
+- **`app/core/llm_client.py` reduced to `embed_text()` only** — the
+  old hard-coded DeepSeek `chat_completion()` moved into
+  `DeepSeekProvider`. Embeddings stay provider-agnostic per the Phase
+  4 kickoff decision (local via `sentence_transformers` regardless of
+  chat provider).
+- **2.3 — wired into `ask()`**: `app/services/chat.py` calls
+  `get_provider(tenant_id).chat_completion(...)` instead of the old
+  module-level import. Updated the 4 existing tests across
+  `test_usage_limits.py`/`test_cross_tenant_access.py`/
+  `test_query_isolation.py` that mocked the now-removed
+  `app.services.chat.chat_completion` — they mock
+  `app.services.chat.get_provider` instead, returning a stub provider
+  object.
+- **2.4 — admin endpoints**: new `app/api/llm_config.py` —
+  `GET/POST /api/tenant/llm-config` (`admin`+, same floor as API-key
+  management: this surface controls a live credential, not just a
+  preference) and `POST /api/tenant/llm-config/reset` (clears the
+  override, reverting to the global default — same explicit
+  "un-configure" pattern as Phase 1's branding). The GET/POST response
+  never echoes the raw key back, only `has_custom_api_key: bool` —
+  mirroring `api_key`'s own "raw value shown once at creation, never
+  again" discipline, even though this key isn't hashed the way
+  `api_key.key_hash` is. **UI panel in `admin.html` deferred** — the
+  three endpoints are fully functional and tested, but the admin
+  console panel to drive them wasn't built this round; noted as an
+  open item below rather than silently skipped.
+- `tests/test_llm_providers.py` (6 tests): no-config global fallback,
+  provider-class selection per stored `provider` value, tenant
+  api_key override, NULL tenant api_key falling back to the *matching*
+  global key (not DeepSeek's), and the ENUM constraint itself as the
+  enforcement point for unknown providers. `tests/test_llm_config.py`
+  (6 tests): editor blocked from both read and write, GET returns
+  `null` when unconfigured, POST never echoes the raw key, unknown
+  provider rejected (400), reset clears back to `null`, and
+  cross-tenant isolation (tenant B never sees tenant A's config).
+- Validated against a real MariaDB instance: full `001`→`016` chain
+  applies cleanly on a fresh database, `016` confirmed independently
+  re-runnable (`SHOW CREATE TABLE` matched exactly on re-run). Full
+  suite run 3 consecutive times against the same DB with no cleanup
+  between runs: **75/75 passing every time**, no regressions anywhere
+  in Phases 1-3 or Phase 4's 1.0.
+- **2.0 Multi-LLM Provider Support is functionally done (2.1-2.4)**,
+  with the admin UI panel as an explicitly open item (see below), not
+  silently deferred. Next: 3.0 Prompt Versioning.
+
 ## Open decisions / things to confirm during Phase 3
 
 - **3.0 cadence**: manual-trigger was assumed, not confirmed (see
@@ -928,7 +1001,7 @@ session could and couldn't independently verify.
 
 ## Next action
 
-Start Phase 4, Round 23: 2.1 — `migrations/016_llm_provider_config.sql`
-(`tenant_llm_config` table), then 2.2 — `ChatProvider` protocol in
-`app/core/llm_providers.py` with `DeepSeekProvider`/`OpenAIProvider`/
-`AnthropicProvider`.
+Start Phase 4, Round 24: 3.1 — `migrations/017_prompt_versions.sql`
+(`tenant_prompt_version` table + `tenant.active_prompt_version_id`),
+then 3.2 — `app/services/prompt_versions.py`
+(`create_version`/`activate_version`/`get_active_prompt`).

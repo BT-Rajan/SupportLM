@@ -113,7 +113,8 @@ def test_citations_never_reference_another_tenants_chunk():
         cur.close()
 
     with patch("app.services.chat.embed_text", return_value=[1.0, 0.0, 0.0]), patch(
-        "app.services.chat.chat_completion", return_value="mocked"
+        "app.services.chat.get_provider",
+        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: "mocked")})(),
     ):
         ask(tenant_a, "question for A", None)
         ask(tenant_b, "question for B", None)

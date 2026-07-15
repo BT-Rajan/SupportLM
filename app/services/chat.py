@@ -2,7 +2,8 @@ import logging
 import time
 import uuid
 
-from app.core.llm_client import chat_completion, embed_text
+from app.core.llm_client import embed_text
+from app.core.llm_providers import get_provider
 from app.db.pool import get_conn
 from app.services.vector_store import hybrid_search
 
@@ -31,7 +32,11 @@ def ask(tenant_id: int, question: str, conversation_id: str | None, agent_name: 
     )
 
     system_prompt = _SYSTEM_PROMPT.format(agent_name=agent_name, context=context or "(no relevant context found)")
-    answer = chat_completion(system_prompt, question)
+    # Phase 4 — 2.3: per-tenant provider selection replaces the old
+    # module-level chat_completion() call, which was hard-wired to
+    # DeepSeek regardless of tenant.
+    provider = get_provider(tenant_id)
+    answer = provider.chat_completion(system_prompt, question)
     t3 = time.perf_counter()
 
     with get_conn() as conn:

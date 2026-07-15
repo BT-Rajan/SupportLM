@@ -207,7 +207,8 @@ def test_ask_rejects_cross_tenant_conversation_id_reuse():
     tenant_q = _ensure_tenant("pytest-chat-q")
 
     with patch("app.services.chat.embed_text", return_value=[0.1, 0.2, 0.3]), patch(
-        "app.services.chat.chat_completion", return_value="mocked"
+        "app.services.chat.get_provider",
+        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: "mocked")})(),
     ):
         result_p = ask(tenant_p, "hello from P", None)
         conv_id_p = result_p["conversation_id"]
@@ -234,7 +235,8 @@ def test_ask_rejects_cross_tenant_conversation_id_reuse():
 
     # Same-tenant continuation must still work.
     with patch("app.services.chat.embed_text", return_value=[0.1, 0.2, 0.3]), patch(
-        "app.services.chat.chat_completion", return_value="mocked follow-up"
+        "app.services.chat.get_provider",
+        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: "mocked follow-up")})(),
     ):
         result_p2 = ask(tenant_p, "follow-up from P", conv_id_p)
     assert result_p2["conversation_id"] == conv_id_p

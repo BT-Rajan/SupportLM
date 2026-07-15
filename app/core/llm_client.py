@@ -1,16 +1,14 @@
-"""Isolates the chat/embedding provider behind a small interface.
+"""Local embedding model, provider-agnostic (Phase 4 — 2.0).
 
-Chat completions go to DeepSeek (OpenAI-compatible chat API).
-Embeddings run LOCALLY via sentence-transformers — DeepSeek does not
-offer a public embeddings endpoint, so there is no remote embedding
-call to make. This also means ingestion has one less external
-failure mode (no network/API-key dependency for embedding).
+Chat completions moved to app/core/llm_providers.py, which is now
+pluggable across DeepSeek/OpenAI/Anthropic, selected per-tenant. This
+file keeps only embed_text() — embeddings run LOCALLY via
+sentence-transformers regardless of which provider a tenant picks for
+chat (not every provider offers a public embeddings endpoint, and
+switching embedding models mid-flight would invalidate every stored
+vector, so this stays a single, install-wide choice).
 """
-import httpx
-
 from app.core.config import settings
-
-_CHAT_URL = "https://api.deepseek.com/chat/completions"
 
 # Loaded lazily on first use — avoids paying the model-load cost at
 # import time (e.g. for scripts that don't need embeddings).
@@ -30,20 +28,3 @@ def embed_text(text: str) -> list[float]:
     model = _get_embedding_model()
     vector = model.encode(text, normalize_embeddings=True)
     return vector.tolist()
-
-
-def chat_completion(system_prompt: str, user_message: str) -> str:
-    resp = httpx.post(
-        _CHAT_URL,
-        headers={"Authorization": f"Bearer {settings.llm_api_key}"},
-        json={
-            "model": settings.llm_chat_model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-        },
-        timeout=60.0,
-    )
-    resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]

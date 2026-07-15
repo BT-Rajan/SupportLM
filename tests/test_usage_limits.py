@@ -202,7 +202,8 @@ def test_message_limit_warning_fires_at_limit_but_never_blocks():
     assert "500" in warning
 
     with patch("app.services.chat.embed_text", return_value=[0.1, 0.2, 0.3]), patch(
-        "app.services.chat.chat_completion", return_value="a real answer"
+        "app.services.chat.get_provider",
+        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: "a real answer")})(),
     ):
         result = ask(tenant_id, "one more question", None)
     assert result["answer"] == "a real answer"  # chat still works past the limit

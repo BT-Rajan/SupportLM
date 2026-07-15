@@ -12,6 +12,17 @@ class Settings(BaseSettings):
     llm_chat_model: str = "deepseek-chat"
     embedding_model_name: str = "all-MiniLM-L6-v2"
 
+    # --- Phase 4 — 2.0: global fallback credentials for OpenAI/Anthropic.
+    # Used only when a tenant has no tenant_llm_config row (or has one
+    # with provider='deepseek', which reuses llm_api_key/llm_chat_model
+    # above rather than duplicating a third "deepseek" pair here).
+    # Same fallback contract as branding: explicit per-tenant override,
+    # sane global default otherwise.
+    openai_api_key: str = ""
+    openai_chat_model: str = "gpt-4o-mini"
+    anthropic_api_key: str = ""
+    anthropic_chat_model: str = "claude-3-5-sonnet-20241022"
+
     app_secret_key: str = "dev-only-change-me"
     app_env: str = "development"
 
