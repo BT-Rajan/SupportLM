@@ -5,14 +5,11 @@
 
 ## Current phase
 
-**Phase 4 (Retrieval & Answer Quality) — COMPLETE.** All three
-sections done: 1.0 Hybrid Search (Round 22), 2.0 Multi-LLM Provider
-Support (Round 23), 3.0 Prompt Versioning (Round 24). Admin UI panels
-for 2.0/3.0 are tracked as backlog alongside the existing admin
-console redesign item. Phase 3 is marked complete per owner
+**Phase 5 — Round 25 complete (planning). `docs/Phase V WBS.md`
+written; 1.1 (fetch conversation history in `ask()`) is next.** Phase 4
+is complete (see above). Phase 3 is marked complete per owner
 confirmation — see the Round 21 note below for what this session
-could and couldn't independently verify. Next: Phase 5 (Conversation
-Experience) per `docs/MASTER_PROMPT.md`.
+could and couldn't independently verify.
 
 ## Phase progress
 
@@ -22,7 +19,7 @@ Experience) per `docs/MASTER_PROMPT.md`.
 | 2     | Access Control & Anonymous-Chat Email    | Complete    |
 | 3     | Knowledge Base Management                | Complete (per owner confirmation; 1.0-6.0 build not in this repo's round log — see Round 21 note) |
 | 4     | Retrieval & Answer Quality                | Complete |
-| 5     | Conversation Experience                   | Not started |
+| 5     | Conversation Experience                   | In progress (planning) |
 | 6     | Escalation to Service Request (SR)        | Not started |
 | 7     | Analytics & Reporting                     | Not started |
 | 8     | Admin, Ops & Webhooks                     | Not started |
@@ -1050,6 +1047,42 @@ Experience) per `docs/MASTER_PROMPT.md`.
   log) and 5.0 Documentation & Handoff — then Phase 5 (Conversation
   Experience) per `docs/MASTER_PROMPT.md`.
 
+### Round 25 — Phase 5 planning (Conversation Experience)
+- Wrote `docs/Phase V WBS.md`, breaking the master prompt's Phase 5
+  scope into 1.0 Multi-turn Memory, 2.0 Multi-language Support, 3.0
+  Thumbs Up/Down Feedback, 4.0 Testing & Validation, 5.0 Documentation
+  & Handoff — same shape as Phases 1-4's WBS docs.
+- Confirmed three kickoff decisions directly with the owner: **1.0
+  multi-turn memory** is full, uncapped conversation history in both
+  retrieval and the answer call (not a capped window, not a
+  query-rewriting LLM call first); **2.0 multi-language** is an
+  explicit widget language selector that forces replies into the
+  chosen language (not auto-detection); **3.0 feedback** is simple
+  thumbs up/down, anonymous, no comment field, and — the specific
+  thing this decision rules out — **no re-voting after the first
+  submission**.
+- Flagged a real, accepted-not-fixed risk before 1.1: "no cap" on
+  conversation history runs into three independent ceilings this phase
+  doesn't work around — `sentence-transformers`' 256-token embedding
+  input limit (silent truncation, not a failure), MySQL FULLTEXT's
+  practical relevance-quality degradation on very long query text (not
+  a hard cap), and every provider's real context-window limit
+  (surfaces as the existing `502` handling in `post_chat`, nothing new
+  needed). Recorded explicitly so a long-conversation quality
+  degradation later isn't mistaken for a bug this phase should have
+  prevented — capping/summarizing history is exactly the follow-up
+  work the "no cap" decision defers, not an oversight.
+- Read `app/api/chat.py`'s `post_chat` (existing `httpx.HTTPStatusError`
+  handling already surfaces provider context-limit errors usefully — no
+  changes needed there for 1.0) and `templates/chat.html`/
+  `static/js/chat.js` (already a fully built, real widget with a
+  transcript-email feature — unlike `admin.html`, this surface gets a
+  real UI addition each phase, not a backlogged one; 2.0's language
+  selector and 3.0's thumbs icons both get built this phase, not
+  deferred) before writing the WBS.
+- **Phase 5 planning is done.** Starting 1.1 (fetch conversation
+  history in `ask()`) next.
+
 ## Open decisions / things to confirm during Phase 3
 
 - **3.0 cadence**: manual-trigger was assumed, not confirmed (see
@@ -1068,8 +1101,6 @@ Experience) per `docs/MASTER_PROMPT.md`.
 
 ## Next action
 
-Phase 4 is complete. Start Phase 5 (Conversation Experience) planning:
-write `docs/Phase V WBS.md` breaking down multi-turn memory,
-multi-language support, and thumbs up/down feedback per
-`docs/MASTER_PROMPT.md`'s Phase 5 scope — same kickoff-questions
-discipline used for Phases 2/3/4 before writing any migration.
+Start Phase 5, Round 26: 1.1 — fetch full conversation history in
+`app/services/chat.py`'s `ask()`, then 1.2 — fold that history into
+the text/vector passed to `hybrid_search()`.
