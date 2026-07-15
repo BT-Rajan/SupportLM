@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.tenant_scope import resolve_tenant
 from app.core.theme import resolve_theme
 from app.services.chat import ask
+from app.services.transcript_email import TranscriptEmailError, send_transcript_email
 from app.services.usage import message_limit_warning
 
 router = APIRouter(prefix="/api/chat", tags=["chat"], dependencies=[Depends(resolve_tenant)])
@@ -17,6 +18,11 @@ logger = logging.getLogger("supportlm.chat")
 class ChatRequest(BaseModel):
     question: str
     conversation_id: str | None = None
+
+
+class TranscriptRequest(BaseModel):
+    conversation_id: str
+    email: str
 
 
 @router.post("")
@@ -51,3 +57,21 @@ def post_chat(req: ChatRequest, tenant_id: int = Depends(resolve_tenant)):
             else "The assistant hit an unexpected error generating a response. Please try again."
         )
         raise HTTPException(status_code=500, detail=detail)
+
+
+@router.post("/transcript")
+def post_transcript(req: TranscriptRequest, tenant_id: int = Depends(resolve_tenant)):
+    """4.2: anonymous, opt-in — same `resolve_tenant` (not
+    `resolve_tenant_for_admin`) auth as `post_chat` above, matching
+    the rest of the chat widget's auth-free surface. Every failure
+    mode here (bad email, conversation not found for this tenant, no
+    messages yet, SMTP not configured) is a `TranscriptEmailError`
+    with a message safe to show an anonymous visitor directly — none
+    of them are "unexpected" the way post_chat's catch-all is, so this
+    doesn't need that same broad except-Exception fallback."""
+    try:
+        agent_name = resolve_theme(tenant_id)["agent_name"]
+        send_transcript_email(tenant_id, req.conversation_id, req.email, agent_name=agent_name)
+        return {"ok": True}
+    except TranscriptEmailError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

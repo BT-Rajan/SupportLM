@@ -14,6 +14,13 @@
   const input = document.getElementById("chat-input");
   const sendBtn = form.querySelector(".composer-send");
 
+  const transcriptToggle = document.getElementById("transcript-toggle");
+  const transcriptPanel = document.getElementById("transcript-panel");
+  const transcriptEmail = document.getElementById("transcript-email");
+  const transcriptSend = document.getElementById("transcript-send");
+  const transcriptCancel = document.getElementById("transcript-cancel");
+  const transcriptStatus = document.getElementById("transcript-status");
+
   function formatTime(date) {
     return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   }
@@ -96,6 +103,101 @@
     if (row) row.remove();
   }
 
+  // WBS 4.3: the button starts `disabled` in chat.html — there's no
+  // conversation to email until the first exchange completes. Called
+  // once conversationId is first set inside sendQuestion() below.
+  function enableTranscriptButton() {
+    transcriptToggle.disabled = false;
+    transcriptToggle.title = "Email me this conversation";
+  }
+
+  function setTranscriptStatus(text, kind) {
+    transcriptStatus.textContent = text;
+    transcriptStatus.classList.remove("success", "error");
+    if (kind) transcriptStatus.classList.add(kind);
+    transcriptStatus.hidden = !text;
+  }
+
+  function closeTranscriptPanel() {
+    transcriptPanel.hidden = true;
+    transcriptToggle.setAttribute("aria-expanded", "false");
+  }
+
+  transcriptToggle.addEventListener("click", function () {
+    const isOpen = !transcriptPanel.hidden;
+    if (isOpen) {
+      closeTranscriptPanel();
+      return;
+    }
+    transcriptPanel.hidden = false;
+    transcriptToggle.setAttribute("aria-expanded", "true");
+    setTranscriptStatus("");
+    transcriptEmail.focus();
+  });
+
+  transcriptCancel.addEventListener("click", function () {
+    closeTranscriptPanel();
+    setTranscriptStatus("");
+  });
+
+  async function sendTranscript() {
+    const email = transcriptEmail.value.trim();
+    if (!email) {
+      setTranscriptStatus("Enter an email address first.", "error");
+      return;
+    }
+    if (!conversationId) {
+      setTranscriptStatus("Start a conversation first.", "error");
+      return;
+    }
+
+    transcriptSend.disabled = true;
+    transcriptEmail.disabled = true;
+    setTranscriptStatus("Sending…");
+
+    try {
+      const res = await fetch(TENANT_BASE + "/api/chat/transcript", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversation_id: conversationId, email: email }),
+      });
+
+      // Same defensive parse as sendQuestion() — the server always
+      // returns JSON, but don't throw into a blank error if that
+      // ever isn't true.
+      const rawBody = await res.text();
+      let data = null;
+      try {
+        data = rawBody ? JSON.parse(rawBody) : null;
+      } catch (parseErr) {
+        setTranscriptStatus("Server error (" + res.status + ").", "error");
+        return;
+      }
+
+      if (!res.ok) {
+        setTranscriptStatus((data && data.detail) || "Could not send the transcript.", "error");
+        return;
+      }
+
+      setTranscriptStatus("Sent! Check your inbox.", "success");
+      transcriptEmail.value = "";
+      setTimeout(closeTranscriptPanel, 2000);
+    } catch (err) {
+      setTranscriptStatus("Network error: could not reach the server.", "error");
+    } finally {
+      transcriptSend.disabled = false;
+      transcriptEmail.disabled = false;
+    }
+  }
+
+  transcriptSend.addEventListener("click", sendTranscript);
+  transcriptEmail.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendTranscript();
+    }
+  });
+
   function autoResize() {
     input.style.height = "auto";
     input.style.height = Math.min(input.scrollHeight, 120) + "px";
@@ -158,6 +260,7 @@
       }
 
       conversationId = data.conversation_id;
+      if (conversationId) enableTranscriptButton();
       const { meta } = appendMessage("assistant", data.answer);
       attachSources(meta, data.sources);
     } catch (err) {

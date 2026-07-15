@@ -60,6 +60,19 @@ inline hex values in a component file):
   bubbles (`.msg-assistant` in chat.css) is specific to chat messages
   only — don't reuse the notch shape for unrelated cards; it means
   "this came from the support/ticket system," not "generic panel."
+- **Inline collapsible action panel** (WBS 4.3, `.transcript-panel` in
+  chat.css): a ghost icon button in the header (`.transcript-btn` —
+  `surface` background, `border`, `muted` icon color, `accent`/
+  `accent-soft` on hover and while its panel is open) toggles a
+  `surface-alt` strip anchored to the composer, containing one
+  `.transcript-input` (identical styling to `.composer-input`, just
+  smaller) and one small primary button. This is the pattern for any
+  future "one quick input, one action, dismissible" affordance
+  attached to the chat widget — don't build a modal/overlay for
+  something this small, extend this strip pattern instead. Status
+  feedback for the action reuses `--font-mono`/small-size (matching
+  the existing "system/utility text" rule above) and the existing
+  error red / `accent-ink` success color — no new colors introduced.
 
 ## Per-tenant branding (WBS 4.1-4.3)
 

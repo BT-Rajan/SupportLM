@@ -5,15 +5,18 @@
 
 ## Current phase
 
-**Phase 2 — Round 17 complete (3.0: session management hardening,
-done in full — 3.1-3.3). Next: 4.0 anonymous chat transcript email.**
+**Phase 2 — Round 18 complete (4.0: anonymous chat transcript email,
+done in full — 4.1-4.3). Phase 2 (1.0-4.0) is now fully complete.
+5.0/6.0 (final full-suite pass, doc handoff) are the only remaining
+items — owner's call whether to run them now or treat this STATUS.md
+trail as sufficient, same as Phase 1's 6.0 was explicitly skipped.**
 
 ## Phase progress
 
 | Phase | Name                                   | Status      |
 |-------|-----------------------------------------|-------------|
 | 1     | Multi-tenancy & Org Foundation           | Complete (6.0 skipped by owner decision) |
-| 2     | Access Control & Anonymous-Chat Email    | In progress |
+| 2     | Access Control & Anonymous-Chat Email    | Complete    |
 | 3     | Knowledge Base Management                | Not started |
 | 4     | Retrieval & Answer Quality                | Not started |
 | 5     | Conversation Experience                   | Not started |
@@ -676,6 +679,51 @@ done in full — 3.1-3.3). Next: 4.0 anonymous chat transcript email.**
 - **3.0 Session Management Hardening is done (3.1-3.3).** Next: 4.0
   Anonymous Chat Transcript Email — independent of 1.0-3.0, since
   anonymous chat has no admin/session/role concept at all.
+
+### Round 18 — completed 4.0 (4.1, 4.2, 4.3)
+- **4.1 — schema**: `migrations/011_transcript_email.sql` adds
+  `conversation.visitor_email` (nullable, no new table — one email per
+  conversation is all this needs, and `docs/MASTER_PROMPT.md`
+  explicitly declines PII redaction / retention tooling / encryption
+  at rest for this phase, so the storage shape stays exactly as small
+  as what 4.2 reads and writes).
+- **4.2 — service + endpoint**: `app/services/transcript_email.py`
+  (`build_transcript()` — plain text, oldest-first, enforces the same
+  cross-tenant conversation_id boundary `ask()` already enforces;
+  `send_transcript_email()` — email-format check, SMTP-configured
+  check, send, then persist the opt-in only after a successful send)
+  and `POST /api/chat/transcript` in `app/api/chat.py` — anonymous,
+  `resolve_tenant` not `resolve_tenant_for_admin`, matching the rest
+  of the chat widget's auth-free surface. `_send_email()` is the one
+  function that actually talks to SMTP, split out specifically so
+  tests can monkeypatch it instead of needing a real mail relay.
+  New `smtp_*` settings in `config.py`/`.env.example` —
+  `smtp_host` empty means "not configured," and the service fails
+  loudly with a clear message rather than silently no-op'ing a
+  "successful" send.
+- **4.3 — widget UI**: an envelope icon button in the chat header
+  (disabled until a conversation exists) toggles a collapsible
+  `surface-alt` strip anchored above the composer — one email input,
+  one send button, dismissible. Built entirely from existing tokens
+  and the existing input/button patterns, no new colors; documented
+  as a new reusable pattern in `docs/DESIGN_SYSTEM.md` per 6.0's
+  instruction to record it there, not just in code.
+- `tests/test_transcript_email.py`: transcript formatting/ordering,
+  cross-tenant rejection, empty-conversation rejection, invalid-email
+  rejection, SMTP-not-configured rejection, successful send persisting
+  the opt-in, and two full endpoint-level round trips (success +
+  unknown conversation) through the real FastAPI app with `_send_email`
+  monkeypatched.
+- Validated against the same live MariaDB instance used for Rounds
+  16-17: full `001`→`011` chain applies cleanly, `011` confirmed
+  independently re-runnable, and — beyond the automated suite —
+  rendered `templates/chat.html` through a live `TestClient` request
+  and confirmed the transcript button and panel markup are actually
+  present and the button starts `disabled`, not just that the Python
+  side compiles. Full suite run three consecutive times: **58/58
+  passing** every time, no regressions anywhere in Phase 1 or 1.0-3.0.
+- **4.0 Anonymous Chat Transcript Email is done (4.1-4.3). Phase 2
+  (1.0-4.0) is complete.**
 
 ## Open decisions / things to confirm before Phase 2 starts
 
