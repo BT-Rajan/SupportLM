@@ -5,11 +5,11 @@
 
 ## Current phase
 
-**Phase 5 — Round 26 complete. 1.0 Multi-turn Memory done (1.1-1.4).
-2.0 Multi-language Support is next.** Phase 4 is complete (see above).
-Phase 3 is marked complete per owner confirmation — see the Round 21
-note below for what this session could and couldn't independently
-verify.
+**Phase 5 — Round 27 complete. 1.0 Multi-turn Memory (Round 26) and 2.0
+Multi-language Support done. 3.0 Thumbs Up/Down Feedback is next.**
+Phase 4 is complete (see above). Phase 3 is marked complete per owner
+confirmation — see the Round 21 note below for what this session
+could and couldn't independently verify.
 
 ## Phase progress
 
@@ -1127,6 +1127,48 @@ verify.
 - **1.0 Multi-turn Memory is done (1.1-1.4).** Next: 2.0 Multi-language
   Support.
 
+### Round 27 — completed 2.0 Multi-language Support (2.1-2.4)
+- **2.1 — schema**: `migrations/018_conversation_language.sql` adds
+  `conversation.language` (nullable — same "explicit override, no
+  forced default" contract as every other nullable config column this
+  project has added).
+- **2.2 — enforcement + resolution** (`app/services/chat.py`):
+  `_resolve_language()` — the widget's selection on the current
+  request wins if sent (so switching mid-conversation takes effect
+  immediately); otherwise falls back to whatever the conversation
+  already has stored; `None` if neither exists (today's behavior,
+  unchanged). `_language_instruction()` appends *"Respond only in
+  {language}, regardless of what language the question is written
+  in"* **after** whichever system prompt is already in play (Phase 4
+  default or a tenant's active custom version) — a tenant's custom
+  prompt doesn't need to know about language selection for this to
+  work. Resolved and persisted using the same cross-tenant
+  `conversation_id` guard 1.1 already established — a nulled-out
+  `conversation_id` must not leak another tenant's language setting
+  any more than it leaks their history.
+- **2.3 — widget UI**: a language `<select>` in `chat.html`'s header
+  (English/Spanish/French/German/Arabic/Hindi/Chinese/Portuguese/
+  Japanese/Russian), `chat.js` persists the selection via
+  `localStorage` (scoped per-tenant-slug, since one browser may visit
+  multiple tenants' widgets) and sends it on every request.
+- **2.4 — `ChatRequest` gains `language`**: `app/api/chat.py`, passed
+  straight through to `ask()`.
+- `tests/test_multilanguage.py` (9 tests): instruction text for a
+  known code, unknown-code fallback to the raw code, no-instruction
+  when nothing's selected, first-turn selection both appends the
+  instruction AND persists to `conversation.language`, a second turn
+  that resends no `language` field still gets the stored language
+  enforced, **switching languages mid-conversation takes effect
+  immediately and the third turn (which also sends no `language`
+  field) keeps using the most recent selection, not the first one**,
+  and cross-tenant `conversation_id` reuse doesn't leak tenant A's
+  language choice to tenant B.
+- Full suite run 3 consecutive times against the same DB with no
+  cleanup between runs: **103/103 passing every time**, no regressions
+  anywhere in Phases 1-4 or Phase 5's 1.0.
+- **2.0 Multi-language Support is done (2.1-2.4).** Next: 3.0 Thumbs
+  Up/Down Feedback.
+
 ## Open decisions / things to confirm during Phase 3
 
 - **3.0 cadence**: manual-trigger was assumed, not confirmed (see
@@ -1145,7 +1187,7 @@ verify.
 
 ## Next action
 
-Start Phase 5, Round 27: 2.1 — `migrations/018_conversation_language.sql`
-(`conversation.language`), then 2.2/2.3/2.4 — enforce in the system
-prompt, add the widget language selector, and add `language` to
-`ChatRequest`.
+Start Phase 5, Round 28: 3.1 — `migrations/019_message_feedback.sql`
+(`message_feedback`, UNIQUE on `message_id` — no re-voting per the
+owner's kickoff decision), then 3.2 — `POST
+/api/chat/{message_id}/feedback` in `app/api/chat.py`.

@@ -21,6 +21,34 @@
   const transcriptCancel = document.getElementById("transcript-cancel");
   const transcriptStatus = document.getElementById("transcript-status");
 
+  // Phase 5 — 2.3: language selector. Persisted per-browser via
+  // localStorage (this is the real deployed widget, not a sandboxed
+  // artifact — localStorage is the correct, normal choice here) so a
+  // returning visitor doesn't have to re-pick every page load. Storage
+  // key is scoped by tenant slug since one browser may visit multiple
+  // tenants' widgets.
+  const languageSelect = document.getElementById("language-select");
+  const LANGUAGE_STORAGE_KEY = "supportlm-language-" + window.TENANT_SLUG;
+
+  (function restoreLanguage() {
+    try {
+      const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+      if (saved) languageSelect.value = saved;
+    } catch (err) {
+      // localStorage unavailable (private browsing, disabled, etc.) —
+      // fall back silently to the selector's default value.
+    }
+  })();
+
+  languageSelect.addEventListener("change", function () {
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, languageSelect.value);
+    } catch (err) {
+      // Same silent fallback as above — persistence is a nicety, not
+      // required for the selector to keep working this session.
+    }
+  });
+
   function formatTime(date) {
     return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   }
@@ -232,7 +260,11 @@
       const res = await fetch(TENANT_BASE + "/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: question, conversation_id: conversationId }),
+        body: JSON.stringify({
+          question: question,
+          conversation_id: conversationId,
+          language: languageSelect.value,
+        }),
       });
 
       // Parse the body defensively: the server always returns JSON now,

@@ -18,6 +18,7 @@ logger = logging.getLogger("supportlm.chat")
 class ChatRequest(BaseModel):
     question: str
     conversation_id: str | None = None
+    language: str | None = None  # Phase 5 — 2.4: widget's selected language code, e.g. 'es'
 
 
 class TranscriptRequest(BaseModel):
@@ -29,7 +30,7 @@ class TranscriptRequest(BaseModel):
 def post_chat(req: ChatRequest, tenant_id: int = Depends(resolve_tenant)):
     try:
         agent_name = resolve_theme(tenant_id)["agent_name"]
-        result = ask(tenant_id, req.question, req.conversation_id, agent_name=agent_name)
+        result = ask(tenant_id, req.question, req.conversation_id, agent_name=agent_name, language=req.language)
         # Soft warn only — never blocks the chat, per the owner's
         # decision that message limits warn rather than reject.
         result["limit_warning"] = message_limit_warning(tenant_id)

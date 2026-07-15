@@ -127,6 +127,22 @@ body {
   white-space: nowrap;
 }
 
+/* ---- Language selector (Phase 5 — 2.3) --------------------------------- */
+.language-select {
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--font-sans, inherit);
+  font-size: 12px;
+  padding: 0 6px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.language-select:hover, .language-select:focus { border-color: var(--accent); color: var(--accent-ink); }
+
 /* ---- Transcript email (WBS 4.3) ---------------------------------------- */
 .header-actions { display: flex; align-items: center; gap: 8px; }
 

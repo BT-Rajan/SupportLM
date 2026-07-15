@@ -10,6 +10,23 @@ from app.services.vector_store import hybrid_search
 
 logger = logging.getLogger("supportlm.chat")
 
+# Phase 5 — 2.2: display names for the widget's language selector
+# codes. Only used to phrase the enforcement instruction below — the
+# stored value on `conversation.language` is always the bare code
+# (e.g. 'es'), never the display name.
+_LANGUAGE_NAMES = {
+    "en": "English",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "ar": "Arabic",
+    "hi": "Hindi",
+    "zh": "Chinese",
+    "pt": "Portuguese",
+    "ja": "Japanese",
+    "ru": "Russian",
+}
+
 # Phase 4 — 3.4: this is now the FALLBACK only, used when a tenant has
 # no active_prompt_version_id set. get_active_prompt() returns the
 # tenant's configured prompt text when one exists.
@@ -36,6 +53,34 @@ def _render_system_prompt(template: str, agent_name: str, context: str) -> str:
         return f"{template}\n\nContext:\n{context}"
 
 
+def _resolve_language(conn, tenant_id: int, conversation_id: str | None, requested_language: str | None) -> str | None:
+    """Phase 5 — 2.2: the widget's selection on THIS request wins if
+    sent (a visitor switching the selector mid-conversation updates
+    things going forward). Falls back to whatever the conversation
+    already had stored if this request didn't send one. Returns None
+    if neither exists — no forced language, same as today's behavior.
+    """
+    if requested_language:
+        return requested_language
+    if not conversation_id:
+        return None
+    cur = conn.cursor()
+    cur.execute("SELECT language FROM conversation WHERE id = %s AND tenant_id = %s", (conversation_id, tenant_id))
+    row = cur.fetchone()
+    cur.close()
+    return row["language"] if row else None
+
+
+def _language_instruction(language_code: str | None) -> str:
+    if not language_code:
+        return ""
+    language_name = _LANGUAGE_NAMES.get(language_code, language_code)
+    return (
+        f"\n\nIMPORTANT: Respond only in {language_name}, regardless of what "
+        "language the question is written in."
+    )
+
+
 def _fetch_history(conn, tenant_id: int, conversation_id: str | None) -> list[dict]:
     """Every prior message for this conversation, oldest first, as
     {"role", "content"} dicts ready for a provider's messages array.
@@ -57,7 +102,13 @@ def _fetch_history(conn, tenant_id: int, conversation_id: str | None) -> list[di
     return [{"role": row["role"], "content": row["content"]} for row in rows]
 
 
-def ask(tenant_id: int, question: str, conversation_id: str | None, agent_name: str = "Assistant") -> dict:
+def ask(
+    tenant_id: int,
+    question: str,
+    conversation_id: str | None,
+    agent_name: str = "Assistant",
+    language: str | None = None,
+) -> dict:
     t0 = time.perf_counter()
 
     # Phase 5 — 1.1: fetch full prior history before retrieval — used
@@ -75,6 +126,11 @@ def ask(tenant_id: int, question: str, conversation_id: str | None, agent_name: 
                 conversation_id = None
         cur.close()
         history = _fetch_history(history_conn, tenant_id, conversation_id)
+        # Phase 5 — 2.2: resolved AFTER the cross-tenant guard above,
+        # for the same reason history is — a conversation_id that got
+        # nulled out must not leak that other tenant's language setting
+        # either.
+        resolved_language = _resolve_language(history_conn, tenant_id, conversation_id, language)
 
     # Phase 5 — 1.2: retrieval uses the full transcript, not just the
     # latest question — folded into one string for both the keyword
@@ -104,6 +160,11 @@ def ask(tenant_id: int, question: str, conversation_id: str | None, agent_name: 
     # with no configured prompt see zero behavior change.
     template = get_active_prompt(tenant_id) or _SYSTEM_PROMPT
     system_prompt = _render_system_prompt(template, agent_name, context or "(no relevant context found)")
+    # Phase 5 — 2.2: appended AFTER whichever system prompt is already
+    # in play (Phase 4 default or a tenant's active custom version) —
+    # a tenant's custom prompt shouldn't need to know about language
+    # selection for this to work.
+    system_prompt += _language_instruction(resolved_language)
     # Phase 4 — 2.3: per-tenant provider selection replaces the old
     # module-level chat_completion() call, which was hard-wired to
     # DeepSeek regardless of tenant.
@@ -122,9 +183,10 @@ def ask(tenant_id: int, question: str, conversation_id: str | None, agent_name: 
         conversation_id = conversation_id or str(uuid.uuid4())
 
         cur.execute(
-            """INSERT INTO conversation (id, tenant_id) VALUES (%s, %s)
-               ON DUPLICATE KEY UPDATE last_message_at = NOW()""",
-            (conversation_id, tenant_id),
+            """INSERT INTO conversation (id, tenant_id, language) VALUES (%s, %s, %s)
+               ON DUPLICATE KEY UPDATE last_message_at = NOW(),
+                                       language = COALESCE(VALUES(language), language)""",
+            (conversation_id, tenant_id, resolved_language),
         )
         cur.execute(
             "INSERT INTO message (tenant_id, conversation_id, role, content) VALUES (%s, %s, 'user', %s)",
