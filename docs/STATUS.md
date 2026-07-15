@@ -5,10 +5,8 @@
 
 ## Current phase
 
-**Phase 2 — Round 19 complete (5.0 Testing & Validation + 6.0
-Documentation & Handoff, done in full — not skipped). Phase 2
-(1.0-6.0) is fully complete. Next: Phase 3 (Knowledge Base
-Management), pending kickoff.**
+**Phase 3 — Round 20 complete (planning). `docs/Phase III WBS.md`
+written; 1.0 Content Review Workflow is next.**
 
 ## Phase progress
 
@@ -16,7 +14,7 @@ Management), pending kickoff.**
 |-------|-----------------------------------------|-------------|
 | 1     | Multi-tenancy & Org Foundation           | Complete (6.0 skipped by owner decision) |
 | 2     | Access Control & Anonymous-Chat Email    | Complete    |
-| 3     | Knowledge Base Management                | Not started |
+| 3     | Knowledge Base Management                | In progress (planning) |
 | 4     | Retrieval & Answer Quality                | Not started |
 | 5     | Conversation Experience                   | Not started |
 | 6     | Escalation to Service Request (SR)        | Not started |
@@ -768,40 +766,69 @@ Management), pending kickoff.**
   (Knowledge Base Management) kickoff, pending owner confirmation of
   the open items below.
 
-## Open decisions / things to confirm before Phase 3 starts
+### Round 20 — Phase 3 planning
+- Owner said proceed to scoping Phase 3, same round-by-round
+  discipline as Phases 1-2. Asked the three items flagged at the end
+  of Round 19 directly rather than guessing:
+  - **Draft→review→publish permissions**: owner chose "any role at
+    editor+ can do both" (draft and publish) — no separate
+    reviewer/publisher tier.
+  - **Website sync cadence**: owner chose **manual trigger only**
+    ("Sync now" button), not a daily cron — an explicit deviation
+    from the master prompt's "daily incremental sync" wording, so
+    flagged prominently in `docs/Phase III WBS.md` rather than
+    silently reinterpreted.
+  - **Duplicate/conflict definition**: owner chose the simple option —
+    near-duplicate titles/headings only, not semantic/embedding-based
+    conflict detection.
+- Wrote `docs/Phase III WBS.md`. Caught and documented a real schema
+  collision before it became a bug: `document.status` already means
+  "ingestion pipeline state" (`pending`/`processing`/`ready`/`error`,
+  used by `vector_store.py`'s retrieval filter since Phase 1) — the
+  new draft/review/publish workflow needs a **separate** column
+  (`review_state`), not a repurposing of `status`, since a document
+  can independently be mid-reindex (`status`) and previously-published
+  (`review_state`) at the same time. Retrieval will gate on both.
+- Also flagged one assumption I made myself rather than asking a
+  fourth question: duplicate-detection cadence (3.0) wasn't part of
+  the three confirmed items above. Building it manual-trigger too, for
+  consistency with 2.0 and to avoid a second job-runner mechanism —
+  noted as an assumption to confirm, not a decided item, in
+  `docs/Phase III WBS.md`'s "Owner decisions confirmed at kickoff"
+  section.
+- Noted a UI debt item while scoping 1.3: `templates/admin.html` /
+  `admin.js` / `admin.css` predate `docs/DESIGN_SYSTEM.md` entirely —
+  system-ui font, hardcoded hex colors, no design tokens at all. Since
+  1.0-3.0 all add meaningful new admin surface (review-state controls,
+  sync management, duplicate-review queue), 1.3 will bring the admin
+  console onto the design system rather than building three more
+  pieces on top of the old ad hoc styling.
+- Migration numbering confirmed starting at `012` (`011` was Phase
+  2's transcript-email migration) — `012_document_review_workflow.sql`
+  (1.1), `013_website_sync.sql` (2.1), `014_duplicate_detection.sql`
+  (3.1).
+- **Phase 3 planning is done.** Starting 1.1 (review-state migration)
+  next, same discipline as every prior phase kickoff.
 
-- **Draft → review → publish workflow**: Phase 3's headline item per
-  `docs/MASTER_PROMPT.md` — documents currently go instant-live on
-  upload (`app/api/documents.py`, unchanged since Phase 1). Needs a
-  status field on `document` (draft/review/published or similar),
-  confirmation of who can move a document between states (presumably
-  gated by the 1.0 RBAC role hierarchy — editor drafts, admin+
-  publishes, is the obvious mapping but not yet confirmed with the
-  owner), and a decision on whether unpublished documents are excluded
-  from retrieval entirely or just hidden from the admin "live" list.
-- **Website content sync**: "daily incremental crawl configured URLs,
-  diff against existing docs" needs: which URLs get configured (a new
-  per-tenant settings surface, presumably alongside `tenant_branding`),
-  what "daily" means operationally in a project that's explicitly
-  declined a background job queue framework (`docs/MASTER_PROMPT.md`
-  section 2) — likely a cron-invoked script rather than a queue/worker
-  system, but worth confirming before building it — and what "diff"
-  triggers: silent re-ingest, or a review-queue entry same as 3.1's
-  workflow.
-- **Duplicate/conflict detection**: "daily automated job that analyzes
-  the knowledge base... and surfaces it for review" needs a similar
-  cron-vs-queue decision as the sync job above, plus a definition of
-  "conflicting" precise enough to implement (semantic similarity above
-  some threshold between chunks answering the same question
-  differently, presumably via the existing embedding infrastructure —
-  not yet scoped in detail).
-- Everything else flagged at the end of Phase 1 (RBAC role list,
-  multi-tenant isolation strategy, per-tenant branding scope) was
-  resolved during Phase 1/2 and has been removed from this list rather
-  than carried forward stale.
+## Open decisions / things to confirm during Phase 3
+
+- **3.0 cadence**: manual-trigger was assumed, not confirmed (see
+  above) — worth a direct confirmation once 1.0/2.0 are built and the
+  "Sync now" pattern is visible in the actual admin UI, in case seeing
+  it changes the owner's preference for 3.0 too.
+- **Admin console redesign (1.3)**: bringing `admin.html` onto design
+  tokens is scoped as part of 1.3 rather than a separate round — if it
+  turns out to be bigger than expected once started, it may need to
+  split into its own round rather than block 1.0's actual
+  review-workflow functionality from shipping.
+- **Duplicate-flag similarity threshold (3.2)**: not yet chosen a
+  concrete number for "near-duplicate enough to flag" — will propose
+  one when 3.2 is actually built, based on a few real title/heading
+  examples rather than guessing a threshold in the abstract now.
 
 ## Next action
 
-Write `docs/Phase III WBS.md` breaking down Knowledge Base Management
-per `docs/MASTER_PROMPT.md` section 3, once the owner confirms the
-open items above — same discipline as Phase 2's Round 14 kickoff.
+Start Phase 3, Round 21: 1.1 — `migrations/012_document_review_workflow.sql`
+(adds `document.review_state`, backfills existing documents to
+`'published'`) and the corresponding `vector_store.py` retrieval-gate
+change.
