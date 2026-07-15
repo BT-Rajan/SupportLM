@@ -5,11 +5,10 @@
 
 ## Current phase
 
-**Phase 2 — Round 18 complete (4.0: anonymous chat transcript email,
-done in full — 4.1-4.3). Phase 2 (1.0-4.0) is now fully complete.
-5.0/6.0 (final full-suite pass, doc handoff) are the only remaining
-items — owner's call whether to run them now or treat this STATUS.md
-trail as sufficient, same as Phase 1's 6.0 was explicitly skipped.**
+**Phase 2 — Round 19 complete (5.0 Testing & Validation + 6.0
+Documentation & Handoff, done in full — not skipped). Phase 2
+(1.0-6.0) is fully complete. Next: Phase 3 (Knowledge Base
+Management), pending kickoff.**
 
 ## Phase progress
 
@@ -725,31 +724,84 @@ trail as sufficient, same as Phase 1's 6.0 was explicitly skipped.**
 - **4.0 Anonymous Chat Transcript Email is done (4.1-4.3). Phase 2
   (1.0-4.0) is complete.**
 
-## Open decisions / things to confirm before Phase 2 starts
+### Round 19 — completed 5.0 and 6.0 (Phase 2 closeout, done in full)
+- Owner explicitly asked for 5.0/6.0 to be done properly this round —
+  unlike Phase 1, where 6.0 Testing & Validation was explicitly
+  skipped by owner decision. Recorded here so the two phases' closeout
+  isn't mistaken for following the same pattern.
+- **5.0 Testing & Validation**: rebuilt the MariaDB instance from
+  scratch (`DROP DATABASE` + fresh `CREATE DATABASE`) rather than
+  reusing the accumulated state from Rounds 16-18, specifically so
+  this pass couldn't be quietly relying on row/table state left behind
+  by earlier rounds. Applied the full `001`→`011` migration chain
+  top-to-bottom on that clean database — all 11 migrations, zero
+  errors, 16 tables landed (`admin_user`, `agent`, `api_key`,
+  `app_setting`, `category`, `citation`, `conversation`, `document`,
+  `document_chunk`, `embedding`, `message`, `plan_tier`, `tenant`,
+  `tenant_branding`, `tenant_user`, `usage_log`). Ran the full suite
+  three consecutive times against that same fresh database: **58/58
+  passing every time** — Phase 1's 36 tests plus the 22 added across
+  Phase 2 (5 RBAC, 5 API keys, 4 session hardening, 8 transcript
+  email), with no test-order or leftover-state flakiness across runs.
+- **6.0 Documentation & Handoff**:
+  - `docs/STATUS.md` — this file — updated per round throughout Phase
+    2 already (not just now); this round additionally cleans up
+    Phase-1-era leftovers that had gone stale: the "Open decisions"
+    section below was still headed "before Phase 2 starts" with every
+    item already resolved earlier in Phase 2, and "Next action" at the
+    bottom still said "Start Phase 1, Round 1" — untouched since the
+    very first round. Both replaced below with Phase 2's actual
+    closing state and Phase 3's actual next step, rather than leaving
+    stale planning artifacts sitting under a phase that's now done.
+  - `docs/DESIGN_SYSTEM.md` — already current as of Round 18 (the
+    transcript-panel pattern was documented there the same round it
+    shipped, not deferred to this closeout). Nothing further to add:
+    no new component pattern was introduced in Rounds 15-17 (RBAC, API
+    keys, and session hardening are all backend/auth changes with no
+    new UI surface).
+  - `docs/Phase II WBS.md` — left as-is intentionally. It's the
+    original plan, not a running log; this file (`STATUS.md`) is where
+    completion status lives, matching Phase 1's precedent of never
+    editing `docs/Phase I WBS.md` after the fact.
+- **Phase 2 (Access Control & Anonymous-Chat Transcript Email) is
+  fully complete — 1.0 through 6.0, nothing skipped.** Next: Phase 3
+  (Knowledge Base Management) kickoff, pending owner confirmation of
+  the open items below.
 
-- RBAC role list: Phase 2 needs the actual role set for `tenant_user`
-  (currently only `'owner'` is ever inserted, by `create_tenant.py` and
-  `_ensure_admin_linked`-style flows) before user-invite/permission
-  work can start — e.g. owner/admin/agent/viewer, or whatever set the
-  owner confirms. `count_seats()` in `app/services/usage.py` is ready
-  to enforce `seat_limit` once Phase 2 adds a call site for it.
-- 6.0 Testing & Validation (Phase 1's migration rollback test,
-  multi-tenant smoke test, full regression pass) was explicitly
-  skipped rather than done — flagged here in case the owner wants it
-  picked up before or during Phase 2 rather than left undone
-  indefinitely.
-- Multi-tenant isolation strategy: separate DB schema per tenant vs.
-  shared schema with `tenant_id` row-level scoping. Recommendation to
-  bring to Phase 1 kickoff: shared schema + `tenant_id` (simpler
-  migrations, fine at current scale) unless the owner wants hard
-  isolation for compliance reasons — flagged here, not yet decided.
-- Per-tenant branding: confirm whether this replaces the current
-  hardcoded "Support" header or sits alongside a platform-default theme
-  for tenants who don't customize.
+## Open decisions / things to confirm before Phase 3 starts
+
+- **Draft → review → publish workflow**: Phase 3's headline item per
+  `docs/MASTER_PROMPT.md` — documents currently go instant-live on
+  upload (`app/api/documents.py`, unchanged since Phase 1). Needs a
+  status field on `document` (draft/review/published or similar),
+  confirmation of who can move a document between states (presumably
+  gated by the 1.0 RBAC role hierarchy — editor drafts, admin+
+  publishes, is the obvious mapping but not yet confirmed with the
+  owner), and a decision on whether unpublished documents are excluded
+  from retrieval entirely or just hidden from the admin "live" list.
+- **Website content sync**: "daily incremental crawl configured URLs,
+  diff against existing docs" needs: which URLs get configured (a new
+  per-tenant settings surface, presumably alongside `tenant_branding`),
+  what "daily" means operationally in a project that's explicitly
+  declined a background job queue framework (`docs/MASTER_PROMPT.md`
+  section 2) — likely a cron-invoked script rather than a queue/worker
+  system, but worth confirming before building it — and what "diff"
+  triggers: silent re-ingest, or a review-queue entry same as 3.1's
+  workflow.
+- **Duplicate/conflict detection**: "daily automated job that analyzes
+  the knowledge base... and surfaces it for review" needs a similar
+  cron-vs-queue decision as the sync job above, plus a definition of
+  "conflicting" precise enough to implement (semantic similarity above
+  some threshold between chunks answering the same question
+  differently, presumably via the existing embedding infrastructure —
+  not yet scoped in detail).
+- Everything else flagged at the end of Phase 1 (RBAC role list,
+  multi-tenant isolation strategy, per-tenant branding scope) was
+  resolved during Phase 1/2 and has been removed from this list rather
+  than carried forward stale.
 
 ## Next action
 
-Start Phase 1, Round 1: multi-tenant schema design (tenant/org tables,
-`tenant_id` scoping plan for existing `document`, `document_chunk`,
-`conversation`, `message`, `citation` tables) — proposal first, then
-migration + code once confirmed.
+Write `docs/Phase III WBS.md` breaking down Knowledge Base Management
+per `docs/MASTER_PROMPT.md` section 3, once the owner confirms the
+open items above — same discipline as Phase 2's Round 14 kickoff.
