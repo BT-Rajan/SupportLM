@@ -5,15 +5,35 @@ import uuid
 from app.core.llm_client import embed_text
 from app.core.llm_providers import get_provider
 from app.db.pool import get_conn
+from app.services.prompt_versions import get_active_prompt
 from app.services.vector_store import hybrid_search
 
 logger = logging.getLogger("supportlm.chat")
 
+# Phase 4 — 3.4: this is now the FALLBACK only, used when a tenant has
+# no active_prompt_version_id set. get_active_prompt() returns the
+# tenant's configured prompt text when one exists.
 _SYSTEM_PROMPT = (
     "You are {agent_name}, a support assistant. Answer the user's question using "
     "ONLY the context provided below. If the context doesn't contain the answer, "
     "say you don't know rather than guessing.\n\nContext:\n{context}"
 )
+
+
+def _render_system_prompt(template: str, agent_name: str, context: str) -> str:
+    """template.format() can raise on a tenant-authored prompt_text that
+    contains a stray/unescaped brace — an admin's editing mistake
+    shouldn't 500 every visitor's chat request until it's fixed.
+    Falls back to appending context after the raw template rather than
+    silently dropping context or crashing the request."""
+    try:
+        return template.format(agent_name=agent_name, context=context)
+    except (KeyError, IndexError, ValueError):
+        logger.warning(
+            "Tenant prompt template has a malformed placeholder; falling back to "
+            "appending context directly rather than failing the request."
+        )
+        return f"{template}\n\nContext:\n{context}"
 
 
 def ask(tenant_id: int, question: str, conversation_id: str | None, agent_name: str = "Assistant") -> dict:
@@ -31,7 +51,11 @@ def ask(tenant_id: int, question: str, conversation_id: str | None, agent_name: 
         f"[{r.heading_path or 'Untitled section'}]\n{r.content}" for r in results
     )
 
-    system_prompt = _SYSTEM_PROMPT.format(agent_name=agent_name, context=context or "(no relevant context found)")
+    # Phase 4 — 3.4: tenant's active custom prompt (if configured)
+    # replaces the hardcoded _SYSTEM_PROMPT default — existing tenants
+    # with no configured prompt see zero behavior change.
+    template = get_active_prompt(tenant_id) or _SYSTEM_PROMPT
+    system_prompt = _render_system_prompt(template, agent_name, context or "(no relevant context found)")
     # Phase 4 — 2.3: per-tenant provider selection replaces the old
     # module-level chat_completion() call, which was hard-wired to
     # DeepSeek regardless of tenant.

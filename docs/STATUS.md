@@ -5,12 +5,14 @@
 
 ## Current phase
 
-**Phase 4 — Round 23 complete. 2.0 Multi-LLM Provider Support done
-(2.1-2.4; admin UI panel tracked as backlog alongside the existing
-admin console redesign item, not built this round). 3.0 Prompt
-Versioning is next.** Phase 3 is marked complete per owner
+**Phase 4 (Retrieval & Answer Quality) — COMPLETE.** All three
+sections done: 1.0 Hybrid Search (Round 22), 2.0 Multi-LLM Provider
+Support (Round 23), 3.0 Prompt Versioning (Round 24). Admin UI panels
+for 2.0/3.0 are tracked as backlog alongside the existing admin
+console redesign item. Phase 3 is marked complete per owner
 confirmation — see the Round 21 note below for what this session
-could and couldn't independently verify.
+could and couldn't independently verify. Next: Phase 5 (Conversation
+Experience) per `docs/MASTER_PROMPT.md`.
 
 ## Phase progress
 
@@ -19,7 +21,7 @@ could and couldn't independently verify.
 | 1     | Multi-tenancy & Org Foundation           | Complete (6.0 skipped by owner decision) |
 | 2     | Access Control & Anonymous-Chat Email    | Complete    |
 | 3     | Knowledge Base Management                | Complete (per owner confirmation; 1.0-6.0 build not in this repo's round log — see Round 21 note) |
-| 4     | Retrieval & Answer Quality                | In progress (planning) |
+| 4     | Retrieval & Answer Quality                | Complete |
 | 5     | Conversation Experience                   | Not started |
 | 6     | Escalation to Service Request (SR)        | Not started |
 | 7     | Analytics & Reporting                     | Not started |
@@ -983,6 +985,71 @@ could and couldn't independently verify.
   with the admin UI panel as an explicitly open item (see below), not
   silently deferred. Next: 3.0 Prompt Versioning.
 
+### Round 24 — completed 3.0 Prompt Versioning (3.1-3.4) — Phase 4 done
+- **3.1 — schema**: `migrations/017_prompt_versions.sql` adds
+  `tenant_prompt_version` (append-only: `create_version()` never
+  overwrites, only inserts) and `tenant.active_prompt_version_id`
+  (nullable — NULL = use the hardcoded default in `chat.py`, same
+  fallback contract as 2.0's `tenant_llm_config`).
+  `created_by_admin_id` is `ON DELETE SET NULL`, same rationale as
+  `api_key.created_by_admin_id` — deleting the admin who wrote a
+  version must not invalidate it. Used the simpler `ADD COLUMN IF NOT
+  EXISTS` idiom from 010/011 for the column itself; the FK on that
+  column needed its own `information_schema`-guarded block since
+  `ADD CONSTRAINT IF NOT EXISTS` isn't available in MariaDB — first
+  migration in this repo to need that pattern, documented inline.
+- **3.2 — service** (`app/services/prompt_versions.py`):
+  `create_version()` (always inserts, never auto-activates — same
+  "draft before it's live" spirit as Phase 3's document review),
+  `activate_version()` (the entire rollback mechanism — reactivating
+  an old version_id IS rollback, no separate revert mutation exists;
+  rejects a version_id belonging to another tenant, same cross-tenant
+  guard pattern as every other Phase 1-3 write path), `list_versions()`,
+  `get_active_prompt()`.
+- **3.3 — admin endpoints** (`app/api/prompt_versions.py`): `POST
+  /api/tenant/prompt-versions` (`editor`+ — drafting is low-risk, same
+  floor as document upload), `GET` (`viewer`+), `POST
+  /{id}/activate` (`admin`+ — this is the one action that changes what
+  every visitor's conversation actually sees, same floor as API-key
+  mint/revoke).
+- **3.4 — wired into `ask()`**: `app/services/chat.py`'s
+  `_SYSTEM_PROMPT` module constant is now the fallback only;
+  `get_active_prompt(tenant_id)` is tried first. Added a safeguard not
+  explicitly in the WBS but found necessary while building this: a new
+  `_render_system_prompt()` helper catches `template.format()` raising
+  on a tenant-authored prompt with a stray/unescaped brace — an
+  admin's editing mistake shouldn't 500 every visitor's chat request,
+  so it falls back to appending context directly after the raw
+  template rather than crashing. Logged as a warning when this
+  triggers, not swallowed silently.
+- `tests/test_prompt_versions.py` (10 tests, including 3 chat.py
+  integration tests): no-config returns None, create doesn't
+  auto-activate, version numbers increment per-tenant, activate then
+  read back, **activate-new-then-roll-back-by-reactivating-the-old-one**
+  (the actual rollback mechanism), cross-tenant activation rejected,
+  `created_by_admin_id` survives admin deletion, `ask()` actually uses
+  the tenant's active prompt end-to-end, `ask()` falls back to the
+  default when unconfigured, and `ask()` survives a malformed custom
+  prompt without 500ing. `tests/test_prompt_versions_api.py` (7 tests):
+  viewer can list but not create/activate, editor can create but not
+  activate, create-doesn't-auto-activate at the endpoint level, full
+  admin activate/rollback lifecycle via the API, unknown version_id
+  404s, cross-tenant activation rejected via the API.
+- Validated against a real MariaDB instance: full `001`→`017` chain
+  applies cleanly on a fresh database, `017` confirmed independently
+  re-runnable (both the `CREATE TABLE IF NOT EXISTS` and the
+  information_schema-guarded FK block). Full suite run 3 consecutive
+  times against the same DB with no cleanup between runs: **90/90
+  passing every time**, no regressions anywhere in Phases 1-3 or
+  Phase 4's 1.0/2.0.
+- **Phase 4 (Retrieval & Answer Quality) is done: 1.0 Hybrid Search,
+  2.0 Multi-LLM Provider Support, 3.0 Prompt Versioning all complete.**
+  Admin UI panels for 2.0/3.0 remain backlog items alongside the
+  existing admin console redesign, not built ad-hoc. Next: 4.0 Testing
+  & Validation (already continuously satisfied round-by-round per this
+  log) and 5.0 Documentation & Handoff — then Phase 5 (Conversation
+  Experience) per `docs/MASTER_PROMPT.md`.
+
 ## Open decisions / things to confirm during Phase 3
 
 - **3.0 cadence**: manual-trigger was assumed, not confirmed (see
@@ -1001,7 +1068,8 @@ could and couldn't independently verify.
 
 ## Next action
 
-Start Phase 4, Round 24: 3.1 — `migrations/017_prompt_versions.sql`
-(`tenant_prompt_version` table + `tenant.active_prompt_version_id`),
-then 3.2 — `app/services/prompt_versions.py`
-(`create_version`/`activate_version`/`get_active_prompt`).
+Phase 4 is complete. Start Phase 5 (Conversation Experience) planning:
+write `docs/Phase V WBS.md` breaking down multi-turn memory,
+multi-language support, and thumbs up/down feedback per
+`docs/MASTER_PROMPT.md`'s Phase 5 scope — same kickoff-questions
+discipline used for Phases 2/3/4 before writing any migration.
