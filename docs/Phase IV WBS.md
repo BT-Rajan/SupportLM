@@ -71,7 +71,7 @@ times touching the same function.
 
 ## 1.0 Hybrid Search
 
-- **1.1 Schema**: `migrations/012_hybrid_search.sql` adds a MySQL
+- **1.1 Schema**: `migrations/015_hybrid_search.sql` adds a MySQL
   `FULLTEXT` index on `document_chunk.content` (`ALTER TABLE
   document_chunk ADD FULLTEXT INDEX ft_content (content)`, requires
   InnoDB's native FULLTEXT support, available since MySQL 5.6/MariaDB
@@ -97,7 +97,7 @@ times touching the same function.
 
 ## 2.0 Multi-LLM Provider Support
 
-- **2.1 Schema**: `migrations/013_llm_provider_config.sql` adds
+- **2.1 Schema**: `migrations/016_llm_provider_config.sql` adds
   `tenant_llm_config` (1:1 with `tenant`: `provider ENUM('deepseek',
   'openai','anthropic')`, `model`, `api_key_encrypted` NULL — falls
   back to the existing global `settings.llm_api_key` env var if NULL,
@@ -127,7 +127,7 @@ times touching the same function.
 
 ## 3.0 Prompt Versioning
 
-- **3.1 Schema**: `migrations/014_prompt_versions.sql` adds
+- **3.1 Schema**: `migrations/017_prompt_versions.sql` adds
   `tenant_prompt_version` (id, tenant_id, version_number, prompt_text,
   created_at, created_by_admin_id NULL `ON DELETE SET NULL` —
   mirroring `api_key.created_by_admin_id`'s exact rationale: deleting

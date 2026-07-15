@@ -847,17 +847,18 @@ what this session could and couldn't independently verify.
   replaces), `app/services/chat.py`'s `ask()` (the one function all
   three WBS sections above ultimately touch, confirmed as the reason
   3.0 is sequenced last rather than in parallel with 1.0/2.0).
-- Migration numbering confirmed starting at `012`
-  (`012_hybrid_search.sql`, `013_llm_provider_config.sql`,
-  `014_prompt_versions.sql`) — the same numbers Phase 3's WBS had
-  reserved for its own migrations, which were never written since
-  Phase 3's build happened outside this repo. Flagging this explicitly:
-  if Phase 3's actual migrations exist elsewhere under those same
-  numbers, they'll need to be reconciled (renumbered) before Phase 4's
-  migrations can apply — this session has no visibility into that work
-  to check for a collision itself.
-- **Phase 4 planning is done.** Starting 1.1 (FULLTEXT index migration)
-  next.
+- Migration numbering: initially drafted starting at `012` (the same
+  numbers Phase 3's WBS had reserved), then owner confirmed being
+  unsure whether Phase 3's actual migrations (built outside this repo)
+  used those numbers — so, to be safe, **renumbered Phase 4 to start
+  at `015`** instead of `012`, leaving `012`-`014` as a gap this repo
+  will never fill (Phase 3's real migrations, whatever they're
+  numbered, are assumed to already occupy that range elsewhere).
+  `docs/Phase IV WBS.md` updated accordingly:
+  `015_hybrid_search.sql` (1.1), `016_llm_provider_config.sql` (2.1),
+  `017_prompt_versions.sql` (3.1).
+- **Phase 4 planning is done.** Starting 1.1 (FULLTEXT index migration,
+  `015_hybrid_search.sql`) next.
 
 ## Open decisions / things to confirm during Phase 3
 
@@ -877,10 +878,6 @@ what this session could and couldn't independently verify.
 
 ## Next action
 
-Start Phase 4, Round 22: 1.1 — `migrations/012_hybrid_search.sql`
+Start Phase 4, Round 22: 1.1 — `migrations/015_hybrid_search.sql`
 (adds a MySQL `FULLTEXT` index on `document_chunk.content`), then 1.2
-— `keyword_search()` in `app/services/vector_store.py`. **Before
-writing this migration**, confirm whether Phase 3's actual
-`012_document_review_workflow.sql` exists in whatever repo/branch its
-build happened in — if so, this phase's migrations need renumbering
-to avoid a collision (see Round 21 note above).
+— `keyword_search()` in `app/services/vector_store.py`.
