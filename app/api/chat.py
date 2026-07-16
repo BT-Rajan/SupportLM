@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.core.tenant_scope import resolve_tenant
 from app.core.theme import resolve_theme
+from app.db.pool import get_conn
 from app.services.chat import ask
 from app.services.transcript_email import TranscriptEmailError, send_transcript_email
 from app.services.usage import message_limit_warning
@@ -24,6 +25,10 @@ class ChatRequest(BaseModel):
 class TranscriptRequest(BaseModel):
     conversation_id: str
     email: str
+
+
+class FeedbackRequest(BaseModel):
+    rating: str  # 'up' or 'down'
 
 
 @router.post("")
@@ -76,3 +81,46 @@ def post_transcript(req: TranscriptRequest, tenant_id: int = Depends(resolve_ten
         return {"ok": True}
     except TranscriptEmailError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/{message_id}/feedback")
+def post_message_feedback(message_id: int, req: FeedbackRequest, tenant_id: int = Depends(resolve_tenant)):
+    """3.2: anonymous, same auth-free surface as post_chat/post_transcript.
+    Rejects (400) an unknown rating value, (404) a message that doesn't
+    exist or doesn't belong to this tenant, (400) a user's own message
+    (only assistant answers can be rated), and (409) a second
+    submission for a message that already has feedback — the owner's
+    kickoff decision explicitly ruled out letting a visitor change
+    their vote, so this is a hard reject, not an upsert."""
+    if req.rating not in ("up", "down"):
+        raise HTTPException(status_code=400, detail="rating must be 'up' or 'down'")
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT role FROM message WHERE id = %s AND tenant_id = %s",
+            (message_id, tenant_id),
+        )
+        row = cur.fetchone()
+        if row is None:
+            cur.close()
+            raise HTTPException(status_code=404, detail="Message not found")
+        if row["role"] != "assistant":
+            cur.close()
+            raise HTTPException(status_code=400, detail="Only assistant answers can be rated")
+
+        cur.execute(
+            "SELECT id FROM message_feedback WHERE message_id = %s",
+            (message_id,),
+        )
+        if cur.fetchone() is not None:
+            cur.close()
+            raise HTTPException(status_code=409, detail="Feedback already submitted for this message")
+
+        cur.execute(
+            "INSERT INTO message_feedback (tenant_id, message_id, rating) VALUES (%s, %s, %s)",
+            (tenant_id, message_id, req.rating),
+        )
+        cur.close()
+
+    return {"ok": True}

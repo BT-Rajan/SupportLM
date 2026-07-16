@@ -83,6 +83,55 @@
     return { row, wrap, meta };
   }
 
+  function attachFeedback(meta, messageId) {
+    // Phase 5 — 3.3: simple thumbs up/down, anonymous, no comment
+    // field. Disabled immediately on click — the server enforces "no
+    // re-voting" with a 409, but the widget shouldn't wait for that
+    // round-trip to reflect the same rule; a visitor shouldn't be able
+    // to click twice and only find out the second click did nothing.
+    if (!messageId) return;
+
+    const bar = document.createElement("div");
+    bar.className = "feedback-bar";
+
+    const up = document.createElement("button");
+    up.type = "button";
+    up.className = "feedback-btn feedback-up";
+    up.setAttribute("aria-label", "Helpful");
+    up.textContent = "\u{1F44D}";
+
+    const down = document.createElement("button");
+    down.type = "button";
+    down.className = "feedback-btn feedback-down";
+    down.setAttribute("aria-label", "Not helpful");
+    down.textContent = "\u{1F44E}";
+
+    function submit(rating, clicked, other) {
+      clicked.disabled = true;
+      other.disabled = true;
+      clicked.classList.add("feedback-selected");
+      fetch(TENANT_BASE + "/api/chat/" + messageId + "/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating: rating }),
+      }).catch(function () {
+        // Best-effort — a failed feedback submission shouldn't disrupt
+        // the chat experience with an error message of its own.
+      });
+    }
+
+    up.addEventListener("click", function () {
+      submit("up", up, down);
+    });
+    down.addEventListener("click", function () {
+      submit("down", down, up);
+    });
+
+    bar.appendChild(up);
+    bar.appendChild(down);
+    meta.appendChild(bar);
+  }
+
   function attachSources(meta, sources) {
     if (!sources || sources.length === 0) return;
     sourceIdCounter += 1;
@@ -295,6 +344,7 @@
       if (conversationId) enableTranscriptButton();
       const { meta } = appendMessage("assistant", data.answer);
       attachSources(meta, data.sources);
+      attachFeedback(meta, data.message_id);
     } catch (err) {
       hideTyping();
       appendMessage("error", "Network error: could not reach the server. " + (err && err.message ? err.message : ""));

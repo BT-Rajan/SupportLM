@@ -5,11 +5,13 @@
 
 ## Current phase
 
-**Phase 5 — Round 27 complete. 1.0 Multi-turn Memory (Round 26) and 2.0
-Multi-language Support done. 3.0 Thumbs Up/Down Feedback is next.**
-Phase 4 is complete (see above). Phase 3 is marked complete per owner
-confirmation — see the Round 21 note below for what this session
-could and couldn't independently verify.
+**Phase 5 (Conversation Experience) — COMPLETE.** All three sections
+done: 1.0 Multi-turn Memory (Round 26), 2.0 Multi-language Support
+(Round 27), 3.0 Thumbs Up/Down Feedback (Round 28). Phase 4 is complete
+(see above). Phase 3 is marked complete per owner confirmation — see
+the Round 21 note below for what this session could and couldn't
+independently verify. Next: Phase 6 (Escalation to Service Request)
+per `docs/MASTER_PROMPT.md`.
 
 ## Phase progress
 
@@ -19,7 +21,7 @@ could and couldn't independently verify.
 | 2     | Access Control & Anonymous-Chat Email    | Complete    |
 | 3     | Knowledge Base Management                | Complete (per owner confirmation; 1.0-6.0 build not in this repo's round log — see Round 21 note) |
 | 4     | Retrieval & Answer Quality                | Complete |
-| 5     | Conversation Experience                   | In progress (planning) |
+| 5     | Conversation Experience                   | Complete |
 | 6     | Escalation to Service Request (SR)        | Not started |
 | 7     | Analytics & Reporting                     | Not started |
 | 8     | Admin, Ops & Webhooks                     | Not started |
@@ -1169,6 +1171,52 @@ could and couldn't independently verify.
 - **2.0 Multi-language Support is done (2.1-2.4).** Next: 3.0 Thumbs
   Up/Down Feedback.
 
+### Round 28 — completed 3.0 Thumbs Up/Down Feedback (3.1-3.3) — Phase 5 done
+- **3.1 — schema**: `migrations/019_message_feedback.sql` adds
+  `message_feedback` with `message_id` **UNIQUE** — the direct,
+  literal consequence of the kickoff decision that "let the visitor
+  change their vote" was explicitly *not* chosen. One row per message,
+  ever; the UNIQUE constraint is the schema-level backstop behind the
+  app-layer 409 in 3.2.
+- **3.2 — endpoint**: `POST /api/chat/{message_id}/feedback`
+  (`app/api/chat.py`, anonymous — same auth-free surface as
+  `post_chat`/`post_transcript`). Validates, in order: rating is
+  `'up'`/`'down'` (400), message exists and belongs to this tenant
+  (404 — doesn't distinguish "doesn't exist" from "wrong tenant," same
+  non-distinguishing pattern as every other cross-tenant guard in this
+  codebase), message is an **assistant** message not a user one (400 —
+  a visitor can't rate their own question), no existing feedback row
+  for this message (409). `ask()`'s return value gained `message_id`
+  (the assistant message's real row id — it already tracked this
+  internally as `assistant_message_id` for the citation writes, just
+  wasn't surfacing it) so the widget has something to attach feedback
+  to.
+- **3.3 — widget UI**: thumbs-up/down icon pair (`chat.js`'s new
+  `attachFeedback()`) rendered into each assistant message's meta row,
+  right where the existing sources-toggle already lives. Both buttons
+  disable immediately on click, client-side, mirroring the
+  server-enforced "no re-voting" rule rather than waiting for a 409
+  round-trip to communicate it. Best-effort `fetch` — a failed
+  feedback POST doesn't surface an error bubble of its own, since a
+  missed vote shouldn't disrupt the actual chat experience.
+- `tests/test_message_feedback.py` (8 tests, exercised through the
+  real `/api/chat` endpoint rather than calling `ask()` directly, so
+  the `message_id` under test is a genuine row created the same way
+  production traffic creates one): up-vote succeeds, down-vote
+  succeeds, invalid rating rejected, **second vote on the same message
+  rejected with 409** (the actual kickoff decision under test), unknown
+  message_id 404s, rating a user's own message rejected, cross-tenant
+  message_id rejected via another tenant's URL, and `ask()`'s response
+  actually includes a usable `message_id`.
+- Full suite run 3 consecutive times against the same DB with no
+  cleanup between runs: **111/111 passing every time**, no regressions
+  anywhere in Phases 1-4 or Phase 5's 1.0/2.0.
+- **Phase 5 (Conversation Experience) is done: 1.0 Multi-turn Memory,
+  2.0 Multi-language Support, 3.0 Thumbs Up/Down Feedback all
+  complete.** No new admin-facing surface this phase, so no new admin
+  UI backlog item. Next: Phase 6 (Escalation to Service Request) per
+  `docs/MASTER_PROMPT.md`.
+
 ## Open decisions / things to confirm during Phase 3
 
 - **3.0 cadence**: manual-trigger was assumed, not confirmed (see
@@ -1187,7 +1235,9 @@ could and couldn't independently verify.
 
 ## Next action
 
-Start Phase 5, Round 28: 3.1 — `migrations/019_message_feedback.sql`
-(`message_feedback`, UNIQUE on `message_id` — no re-voting per the
-owner's kickoff decision), then 3.2 — `POST
-/api/chat/{message_id}/feedback` in `app/api/chat.py`.
+Phase 5 is complete. Start Phase 6 (Escalation to Service Request)
+planning: write `docs/Phase VI WBS.md` breaking down SR generation
+(unique SR number, full chat history attached) and dual email
+notification (company support inbox + end user) per
+`docs/MASTER_PROMPT.md`'s Phase 6 scope — same kickoff-questions
+discipline used for every phase so far.

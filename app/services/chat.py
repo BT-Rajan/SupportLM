@@ -214,6 +214,7 @@ def ask(
 
     return {
         "conversation_id": conversation_id,
+        "message_id": assistant_message_id,  # Phase 5 — 3.2: widget needs this to submit feedback
         "answer": answer,
         "sources": [
             {"heading_path": r.heading_path, "similarity": round(r.similarity, 4)}
