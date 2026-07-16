@@ -5,10 +5,10 @@
 
 ## Current phase
 
-**Phase 6 — Round 31 complete (planning). `docs/Phase VI WBS.md`
-written; 1.1 (system-prompt escalation signal) is next.** Phase 3 is
-intentionally done at 1.0 (owner decision, Round 30). Phases 4 and 5
-are complete.
+**Phase 6 — Round 32 complete. 1.1/1.2 escalation detection done; 1.3
+deferred to Round 34 alongside 3.4's endpoint (nothing to submit to
+yet).** 2.0 SR Generation is next. Phase 3 is intentionally done at
+1.0 (owner decision, Round 30). Phases 4 and 5 are complete.
 
 ## Phase progress
 
@@ -1394,6 +1394,38 @@ are complete.
 - **Phase 6 planning is done.** Starting 1.1 (system-prompt escalation
   signal) next.
 
+### Round 32 — completed 1.1/1.2 of Escalation Detection (1.3 deferred to Round 34)
+- **1.1 — system-prompt signal**: appended, last (after Phase 5's
+  language instruction), a new instruction telling the model to end
+  its response with a literal `[ESCALATE]` marker line if — and only
+  if — the provided context doesn't contain enough to answer. Text
+  marker, not structured/function-calling output, per
+  `docs/Phase VI WBS.md`'s note on why that fits this architecture.
+- **1.2 — detect + strip**: new `_detect_and_strip_escalation()` in
+  `app/services/chat.py` — checks the raw answer's trailing text for
+  the marker (a marker-looking string in the *middle* of a real answer
+  must not trigger this — only a genuine trailing marker counts, and
+  there's a test for exactly that), strips it before the answer is
+  shown to the visitor OR written to the `message` table, and sets
+  `needs_escalation` on `ask()`'s return dict.
+- **1.3 deliberately deferred to Round 34**: the widget's "ask for an
+  email" prompt has nothing useful to submit to until 3.4's
+  `/escalate` endpoint exists — building UI against a non-existent
+  endpoint can't actually be tested, so 1.3 is built together with
+  3.4 once 2.0/3.0 land, not left half-built now. Not silently
+  skipped — recorded as an explicit sequencing choice.
+- `tests/test_escalation_detection.py` (7 tests): marker detected and
+  stripped, no-marker case passes through unchanged, a marker-looking
+  substring mid-answer does NOT trigger escalation (only a genuine
+  trailing marker does), `ask()` surfaces `needs_escalation: true`/
+  `false` correctly in both directions, the stripped marker never
+  lands in the stored `message` row, the escalation instruction is
+  actually present in the system prompt sent to the provider.
+- Full suite run 3 consecutive times against the same DB with no
+  cleanup between runs: **125/125 passing every time**, no regressions
+  anywhere in Phases 1-5.
+- Next: 2.0 SR Generation.
+
 ## Open decisions / things to confirm during Phase 3
 
 **Moot as of Round 30** — the owner decided Phase 3 stops at 1.0, so
@@ -1417,7 +1449,6 @@ needed deciding if this scope is ever revisited.
 
 ## Next action
 
-Start Phase 6, Round 32: 1.1 — append the escalation-signal instruction
-to the system prompt in `app/services/chat.py`, then 1.2 — detect and
-strip the `[ESCALATE]` marker, setting `needs_escalation` on `ask()`'s
-return dict.
+Start Phase 6, Round 33: 2.1 — `migrations/020_service_requests.sql`
+(`service_request` + `sr_sequence`), then 2.2 —
+`generate_sr_number()` in a new `app/services/escalation.py`.

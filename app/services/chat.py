@@ -81,6 +81,35 @@ def _language_instruction(language_code: str | None) -> str:
     )
 
 
+# Phase 6 — 1.1: the literal marker the model is instructed to append
+# when (and only when) it cannot answer from the provided context. A
+# text-marker convention, not structured/function-calling output —
+# consistent with how all three providers are wired today. This relies
+# on model compliance; there's no hard guarantee every provider/model
+# follows it with the same reliability, same category of accepted risk
+# as Phase 5's uncapped history.
+_ESCALATION_MARKER = "[ESCALATE]"
+
+_ESCALATION_INSTRUCTION = (
+    "\n\nIf, and only if, the context provided above does not contain enough "
+    f"information to answer the question, end your entire response with the "
+    f"exact text \"{_ESCALATION_MARKER}\" on its own line and nothing else "
+    "after it. Do not use this marker if you were able to answer the question."
+)
+
+
+def _detect_and_strip_escalation(answer: str) -> tuple[str, bool]:
+    """Phase 6 — 1.2. Returns (visible_answer, needs_escalation). The
+    marker is an internal signal — it must never reach the visitor, so
+    it's stripped from the text before it's shown OR stored in the
+    message table."""
+    stripped = answer.rstrip()
+    if stripped.endswith(_ESCALATION_MARKER):
+        visible = stripped[: -len(_ESCALATION_MARKER)].rstrip()
+        return visible, True
+    return answer, False
+
+
 def _fetch_history(conn, tenant_id: int, conversation_id: str | None) -> list[dict]:
     """Every prior message for this conversation, oldest first, as
     {"role", "content"} dicts ready for a provider's messages array.
@@ -165,11 +194,17 @@ def ask(
     # a tenant's custom prompt shouldn't need to know about language
     # selection for this to work.
     system_prompt += _language_instruction(resolved_language)
+    # Phase 6 — 1.1: appended last — this instruction's marker
+    # detection in 1.2 only looks at the very end of the answer, so it
+    # needs to be the final instruction the model sees, after language
+    # enforcement.
+    system_prompt += _ESCALATION_INSTRUCTION
     # Phase 4 — 2.3: per-tenant provider selection replaces the old
     # module-level chat_completion() call, which was hard-wired to
     # DeepSeek regardless of tenant.
     provider = get_provider(tenant_id)
-    answer = provider.chat_completion(system_prompt, history, question)
+    raw_answer = provider.chat_completion(system_prompt, history, question)
+    answer, needs_escalation = _detect_and_strip_escalation(raw_answer)
     t3 = time.perf_counter()
 
     with get_conn() as conn:
@@ -216,6 +251,7 @@ def ask(
         "conversation_id": conversation_id,
         "message_id": assistant_message_id,  # Phase 5 — 3.2: widget needs this to submit feedback
         "answer": answer,
+        "needs_escalation": needs_escalation,  # Phase 6 — 1.2/1.3: widget prompts for email if True
         "sources": [
             {"heading_path": r.heading_path, "similarity": round(r.similarity, 4)}
             for r in results
