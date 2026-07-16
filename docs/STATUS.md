@@ -5,12 +5,10 @@
 
 ## Current phase
 
-**Phase 6 (Escalation to Service Request) — COMPLETE.** All three
-sections done: 1.0 Escalation Detection (Round 32), 2.0 SR Generation
-(Round 33), 3.0 Dual Email Notification + deferred 1.3 (Round 34).
-Phase 3 is intentionally done at 1.0 (owner decision, Round 30). Phases
-4 and 5 are complete. Next: Phase 7 (Analytics & Reporting) per
-`docs/MASTER_PROMPT.md`.
+**Phase 7 — Round 35 complete (planning). `docs/Phase VII WBS.md`
+written; 0.1 (`ChatProvider` interface change for token capture) is
+next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
+30). Phases 4, 5, and 6 are complete.
 
 ## Phase progress
 
@@ -22,7 +20,7 @@ Phase 3 is intentionally done at 1.0 (owner decision, Round 30). Phases
 | 4     | Retrieval & Answer Quality                | Complete |
 | 5     | Conversation Experience                   | Complete |
 | 6     | Escalation to Service Request (SR)        | Complete |
-| 7     | Analytics & Reporting                     | Not started |
+| 7     | Analytics & Reporting                     | In progress (planning) |
 | 8     | Admin, Ops & Webhooks                     | Not started |
 
 ## Round log
@@ -1533,6 +1531,40 @@ Phase 3 is intentionally done at 1.0 (owner decision, Round 30). Phases
   backlog alongside LLM-config/prompt-version panels. Next: Phase 7
   (Analytics & Reporting) per `docs/MASTER_PROMPT.md`.
 
+### Round 35 — Phase 7 planning (Analytics & Reporting)
+- Wrote `docs/Phase VII WBS.md`, breaking the master prompt's Phase 7
+  scope into 0.0 Foundation (Token & Cost Capture — not in the master
+  prompt's own list, but genuinely required before 1.0/4.0 can render
+  anything), 1.0 Usage Dashboard, 2.0 Unanswered/Low-Confidence
+  Question Log, 3.0 CSAT, 4.0 Per-tenant LLM Cost Tracking, 5.0
+  Exportable Reports, 6.0 Testing & Validation, 7.0 Documentation &
+  Handoff.
+- Confirmed three kickoff decisions: **1.0 usage dashboard** is a real
+  admin-console page with charts, built this phase (not deferred to
+  the backlog Phase 4/6's config panels went to); **4.0 cost
+  tracking** is token counts plus an estimated dollar cost via a
+  hardcoded per-provider/model price table; **5.0 reports** are CSV,
+  not a formatted PDF-style summary.
+- **Identified and flagged a real foundational gap before writing
+  1.0/4.0's details**: nothing in this codebase captures token usage
+  today — `ChatProvider.chat_completion()` returns a bare string,
+  discarding every provider's real usage block. This requires an
+  actual interface change (return a dict instead of a string), which
+  touches every existing test stub across 7 test files. Called out
+  explicitly as broad-but-mechanical, same shape as Phase 5 — 1.3's
+  history-parameter change, not hidden as an incidental side effect.
+- **Flagged the pricing table itself as something that will go
+  stale**: this session's best knowledge of current provider pricing,
+  not independently verified against live pricing pages, and prices
+  change over time — same "accepted, not guaranteed" framing as Phase
+  5's uncapped-history risk and Phase 6's model-compliance risk.
+- Confirmed 2.0 (flagged questions) and 3.0 (CSAT) need **no new
+  schema** — both are computable entirely from data Phases 5/6 already
+  created (`message.needs_escalation`, `citation.similarity`,
+  `message_feedback`).
+- **Phase 7 planning is done.** Starting 0.1 (the `ChatProvider`
+  interface change) next.
+
 ## Open decisions / things to confirm during Phase 3
 
 **Moot as of Round 30** — the owner decided Phase 3 stops at 1.0, so
@@ -1556,9 +1588,8 @@ needed deciding if this scope is ever revisited.
 
 ## Next action
 
-Phase 6 is complete. Start Phase 7 (Analytics & Reporting) planning:
-write `docs/Phase VII WBS.md` breaking down the usage dashboard,
-unanswered/low-confidence question log, CSAT tied to thumbs up/down,
-per-tenant LLM cost tracking, and exportable reports per
-`docs/MASTER_PROMPT.md`'s Phase 7 scope — same kickoff-questions
-discipline used for every phase so far.
+Start Phase 7, Round 36: 0.1 — change `ChatProvider.chat_completion()`
+to return `{"content", "input_tokens", "output_tokens"}` across all
+three providers, then update every existing test stub (7 files) to
+match before writing any new code, to isolate the regression risk from
+new feature work.
