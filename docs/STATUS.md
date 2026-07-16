@@ -5,13 +5,10 @@
 
 ## Current phase
 
-**Phase 3 is intentionally scoped to 1.0 only — explicit owner
-decision, not an oversight.** 2.0 (Website Content Sync) and 3.0
-(Duplicate/Conflict Detection) will not be built; treat Phase 3 as
-done. Phase 4 and Phase 5 are both genuinely complete (see the Round
-29 cross-session merge note below for how Phase 5's completeness was
-confirmed against a concurrent session's work). **Starting Phase 6
-(Escalation to Service Request) planning next.**
+**Phase 6 — Round 31 complete (planning). `docs/Phase VI WBS.md`
+written; 1.1 (system-prompt escalation signal) is next.** Phase 3 is
+intentionally done at 1.0 (owner decision, Round 30). Phases 4 and 5
+are complete.
 
 ## Phase progress
 
@@ -22,7 +19,7 @@ confirmed against a concurrent session's work). **Starting Phase 6
 | 3     | Knowledge Base Management                | Complete — intentionally scoped to 1.0 only, by owner decision (2.0/3.0 will not be built) |
 | 4     | Retrieval & Answer Quality                | Complete |
 | 5     | Conversation Experience                   | Complete |
-| 6     | Escalation to Service Request (SR)        | Not started |
+| 6     | Escalation to Service Request (SR)        | In progress (planning) |
 | 7     | Analytics & Reporting                     | Not started |
 | 8     | Admin, Ops & Webhooks                     | Not started |
 
@@ -1369,6 +1366,34 @@ confirmed against a concurrent session's work). **Starting Phase 6
   this as **Complete (1.0 only, by owner decision)** rather than "in
   progress" or "not started."
 
+### Round 31 — Phase 6 planning (Escalation to Service Request)
+- Wrote `docs/Phase VI WBS.md`, breaking the master prompt's Phase 6
+  scope into 1.0 Escalation Detection, 2.0 SR Generation, 3.0 Dual
+  Email Notification, 4.0 Testing & Validation, 5.0 Documentation &
+  Handoff — same shape as every phase's WBS so far.
+- Confirmed three kickoff decisions directly with the owner:
+  **1.0 trigger** is automatic only (the model signals when it can't
+  help; no manual escalation button in this phase's scope);
+  **2.0 SR number format** is date-prefixed sequential
+  (`SR-20260716-0007`); **3.0 support inbox** is per-tenant, admin-set,
+  and required — no global fallback.
+- **Resolved, not just asked about, a real design gap**: the master
+  prompt requires emailing "the end user," but this widget is fully
+  anonymous with no visitor email collected upfront. Assumed (flagged
+  explicitly, same as Phase III WBS's cadence assumption) that the
+  widget prompts the visitor for their email at the moment escalation
+  triggers, before the SR is created or either email goes out — if the
+  visitor doesn't provide one, no SR is created and no emails send,
+  since a support ticket with no way to reach the visitor back doesn't
+  serve this feature's actual purpose.
+- Read `app/services/transcript_email.py` before writing the WBS —
+  2.3 reuses its existing `build_transcript()` rather than duplicating
+  chat-history-assembly logic, and 3.x's dual-email sending follows
+  the same `_send_email()`/SMTP-config pattern already established
+  there.
+- **Phase 6 planning is done.** Starting 1.1 (system-prompt escalation
+  signal) next.
+
 ## Open decisions / things to confirm during Phase 3
 
 **Moot as of Round 30** — the owner decided Phase 3 stops at 1.0, so
@@ -1392,10 +1417,7 @@ needed deciding if this scope is ever revisited.
 
 ## Next action
 
-Phase 3 is intentionally done at 1.0 (owner decision, Round 30). Phases
-4 and 5 are complete. Start Phase 6 (Escalation to Service Request)
-planning: write `docs/Phase VI WBS.md` breaking down SR generation
-(unique SR number, full chat history attached) and dual email
-notification (company support inbox + end user) per
-`docs/MASTER_PROMPT.md`'s Phase 6 scope — same kickoff-questions
-discipline used for every phase so far.
+Start Phase 6, Round 32: 1.1 — append the escalation-signal instruction
+to the system prompt in `app/services/chat.py`, then 1.2 — detect and
+strip the `[ESCALATE]` marker, setting `needs_escalation` on `ask()`'s
+return dict.
