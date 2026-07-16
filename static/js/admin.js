@@ -28,6 +28,7 @@
     loginView.hidden = true;
     dashboardView.hidden = false;
     loadCategories();
+    loadSyncSources();
     loadDocuments();
   }
 
@@ -160,6 +161,65 @@
       });
     });
   }
+
+  // --- Website sync (WBS 2.0) ---
+  async function loadSyncSources() {
+    const res = await api("/api/documents/sync-sources");
+    const sources = await res.json();
+
+    const list = document.getElementById("sync-source-list");
+    const empty = document.getElementById("sync-source-empty");
+    list.innerHTML = "";
+    empty.hidden = sources.length > 0;
+
+    sources.forEach((s) => {
+      const li = document.createElement("li");
+      const info = document.createElement("span");
+      const synced = s.last_synced_at ? `last synced ${s.last_synced_at}` : "not yet synced";
+      info.textContent = `${s.url} — ${synced}`;
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.textContent = "Remove";
+      delBtn.className = "btn-danger";
+      delBtn.onclick = async () => {
+        await api(`/api/documents/sync-sources/${s.id}`, { method: "DELETE" });
+        loadSyncSources();
+      };
+      li.appendChild(info);
+      li.appendChild(delBtn);
+      list.appendChild(li);
+    });
+  }
+
+  document.getElementById("sync-source-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const input = document.getElementById("sync-source-url");
+    const url = input.value.trim();
+    if (!url) return;
+    const res = await api("/api/documents/sync-sources", { method: "POST", body: JSON.stringify({ url }) });
+    if (res.ok) input.value = "";
+    loadSyncSources();
+  });
+
+  document.getElementById("sync-now-btn").addEventListener("click", async function () {
+    const btn = document.getElementById("sync-now-btn");
+    const statusEl = document.getElementById("sync-now-status");
+    btn.disabled = true;
+    statusEl.hidden = false;
+    statusEl.textContent = "Syncing…";
+
+    const res = await api("/api/documents/sync-sources/sync-now", { method: "POST" });
+    const results = await res.json();
+
+    const ingested = results.filter((r) => r.status === "ingested").length;
+    const unchanged = results.filter((r) => r.status === "unchanged").length;
+    const errors = results.filter((r) => r.status.startsWith("error")).length;
+    statusEl.textContent = `Done — ${ingested} updated, ${unchanged} unchanged, ${errors} failed.`;
+
+    btn.disabled = false;
+    loadSyncSources();
+    loadDocuments();
+  });
 
   document.getElementById("upload-form").addEventListener("submit", async function (e) {
     e.preventDefault();

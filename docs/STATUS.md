@@ -5,10 +5,19 @@
 
 ## Current phase
 
-**Phase 7 — Round 35 complete (planning). `docs/Phase VII WBS.md`
-written; 0.1 (`ChatProvider` interface change for token capture) is
-next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
-30). Phases 4, 5, and 6 are complete.
+**Phase 7 — Round 36 complete (other session, planning).
+`docs/Phase VII WBS.md` written; 0.1 (`ChatProvider` interface change
+for token capture) is next.** Phases 4, 5, and 6 are complete.
+
+**Phase 3 update, superseding Round 31's recorded decision**: Round
+31 (other session) recorded an owner decision that Phase 3 stops at
+1.0. The owner confirmed directly, in the session that built it, that
+this is superseded — **2.0 (Website Content Sync) is now built**
+(Round 37 below — see Round 22 for the earlier cross-session
+reconciliation, and the note at the top of Round 37 for why round
+numbers occasionally needed re-sequencing as both sessions kept
+pushing concurrently). 3.0 (Duplicate/Conflict Detection) remains the
+only unbuilt piece of Phase 3.
 
 ## Phase progress
 
@@ -16,7 +25,7 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
 |-------|-----------------------------------------|-------------|
 | 1     | Multi-tenancy & Org Foundation           | Complete (6.0 skipped by owner decision) |
 | 2     | Access Control & Anonymous-Chat Email    | Complete    |
-| 3     | Knowledge Base Management                | Complete — intentionally scoped to 1.0 only, by owner decision (2.0/3.0 will not be built) |
+| 3     | Knowledge Base Management                | In progress — 1.0/2.0 done, 3.0 not started (supersedes an earlier "stops at 1.0" decision — see Round 37 below) |
 | 4     | Retrieval & Answer Quality                | Complete |
 | 5     | Conversation Experience                   | Complete |
 | 6     | Escalation to Service Request (SR)        | Complete |
@@ -1254,7 +1263,7 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
 - **2.0 Multi-language Support is done (2.1-2.4).** Next: 3.0 Thumbs
   Up/Down Feedback.
 
-### Round 28 — completed 3.0 Thumbs Up/Down Feedback (3.1-3.3) — Phase 5 done
+### Round 29 — completed 3.0 Thumbs Up/Down Feedback (3.1-3.3) — Phase 5 done
 - **3.1 — schema**: `migrations/019_message_feedback.sql` adds
   `message_feedback` with `message_id` **UNIQUE** — the direct,
   literal consequence of the kickoff decision that "let the visitor
@@ -1300,7 +1309,7 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
   UI backlog item. Next: Phase 6 (Escalation to Service Request) per
   `docs/MASTER_PROMPT.md`.
 
-### Round 29 — cross-session merge reconciliation (Phase 3 1.0 + Phase 4/5 continuation)
+### Round 30 — cross-session merge reconciliation (Phase 3 1.0 + Phase 4/5 continuation)
 - On pushing Round 28, the remote had diverged: a **different
   concurrent session** had pushed real Phase 3 1.0 (Content Review
   Workflow) work — `migrations/012_document_review_workflow.sql`,
@@ -1352,7 +1361,7 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
   decision (see "Next action" below), not another session quietly
   choosing for them.
 
-### Round 30 — owner decision: Phase 3 intentionally stops at 1.0
+### Round 31 — owner decision: Phase 3 intentionally stops at 1.0
 - Presented the Round 29 reconciliation finding directly to the owner
   (Phase 3 was really only 1.0 done, not complete as this file had
   said) rather than assuming either "finish it" or "leave it" on this
@@ -1366,7 +1375,7 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
   this as **Complete (1.0 only, by owner decision)** rather than "in
   progress" or "not started."
 
-### Round 31 — Phase 6 planning (Escalation to Service Request)
+### Round 32 — Phase 6 planning (Escalation to Service Request)
 - Wrote `docs/Phase VI WBS.md`, breaking the master prompt's Phase 6
   scope into 1.0 Escalation Detection, 2.0 SR Generation, 3.0 Dual
   Email Notification, 4.0 Testing & Validation, 5.0 Documentation &
@@ -1394,7 +1403,7 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
 - **Phase 6 planning is done.** Starting 1.1 (system-prompt escalation
   signal) next.
 
-### Round 32 — completed 1.1/1.2 of Escalation Detection (1.3 deferred to Round 34)
+### Round 33 — completed 1.1/1.2 of Escalation Detection (1.3 deferred to Round 35)
 - **1.1 — system-prompt signal**: appended, last (after Phase 5's
   language instruction), a new instruction telling the model to end
   its response with a literal `[ESCALATE]` marker line if — and only
@@ -1408,7 +1417,7 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
   there's a test for exactly that), strips it before the answer is
   shown to the visitor OR written to the `message` table, and sets
   `needs_escalation` on `ask()`'s return dict.
-- **1.3 deliberately deferred to Round 34**: the widget's "ask for an
+- **1.3 deliberately deferred to Round 35**: the widget's "ask for an
   email" prompt has nothing useful to submit to until 3.4's
   `/escalate` endpoint exists — building UI against a non-existent
   endpoint can't actually be tested, so 1.3 is built together with
@@ -1426,7 +1435,7 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
   anywhere in Phases 1-5.
 - Next: 2.0 SR Generation.
 
-### Round 33 — completed 2.0 SR Generation (2.1-2.3)
+### Round 34 — completed 2.0 SR Generation (2.1-2.3)
 - **2.1 — schema**: `migrations/020_service_requests.sql` adds
   `sr_sequence` (per-tenant, per-day counter) and `service_request`
   (`message_id` UNIQUE — one escalation per triggering message, no
@@ -1463,7 +1472,7 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
 - Next: 3.0 Dual Email Notification (plus 1.3's deferred widget UI,
   built together with 3.4's endpoint).
 
-### Round 34 — completed 3.0 Dual Email Notification + deferred 1.3 — Phase 6 done
+### Round 35 — completed 3.0 Dual Email Notification + deferred 1.3 — Phase 6 done
 - **3.1 — schema**: `migrations/021_tenant_support_email.sql` adds
   `tenant_support_config` (`support_email NOT NULL` — intentionally not
   nullable-with-a-fallback the way `tenant_llm_config` is, since the
@@ -1502,7 +1511,7 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
   (`app/api/chat.py`, anonymous) — maps `EscalationError` to
   404 (message not found)/409 (already escalated)/400 (everything
   else: bad email, wrong message, no support config).
-- **1.3 (deferred from Round 32) — widget UI**: `chat.js`'s new
+- **1.3 (deferred from Round 33) — widget UI**: `chat.js`'s new
   `attachEscalation()` renders an inline panel (not folded into the
   meta row like feedback/sources — this needs an email input and a
   submit action, more visual room) under the assistant bubble whenever
@@ -1531,7 +1540,7 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
   backlog alongside LLM-config/prompt-version panels. Next: Phase 7
   (Analytics & Reporting) per `docs/MASTER_PROMPT.md`.
 
-### Round 35 — Phase 7 planning (Analytics & Reporting)
+### Round 36 — Phase 7 planning (Analytics & Reporting)
 - Wrote `docs/Phase VII WBS.md`, breaking the master prompt's Phase 7
   scope into 0.0 Foundation (Token & Cost Capture — not in the master
   prompt's own list, but genuinely required before 1.0/4.0 can render
@@ -1565,22 +1574,95 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
 - **Phase 7 planning is done.** Starting 0.1 (the `ChatProvider`
   interface change) next.
 
+### Round 37 — completed 2.0 Website Content Sync (2.1, 2.2, 2.3)
+- **Renumbering note**: this round was originally written as "Round
+  29" (this session's own next number after Round 28). By the time it
+  was ready to push, the other session had continued to Round 36 and
+  its own history contained an unresolved duplicate "Round 28" (two
+  different rounds both claiming that number, from the two sessions'
+  independent counters). Renumbered on top of the other session's
+  final sequence (their duplicate 28 →29, and everything after it
+  shifted +1 through their Round 36) rather than leaving a second
+  collision. Content below is unchanged from what was actually built
+  and tested — only the round number and a few forward/backward
+  cross-references moved.
+- **2.1 — schema**: `migrations/013_website_sync.sql` adds
+  `tenant_sync_source` — one row per configured URL, filling the
+  `012`/`013`/`014` gap this repo had reserved for Phase 3 since Round
+  20's planning. Added a `document_id` link not explicit in
+  `docs/Phase III WBS.md`'s original text — a design decision made
+  while actually building this: without it, every sync of an
+  unchanged URL would either no-op with no way to find "the document
+  this source already made" or, worse, create a new duplicate document
+  every run. One source now maps to exactly one document, updated in
+  place on re-sync (`ON DELETE SET NULL`, not `CASCADE` — deleting the
+  document a source produced shouldn't delete the source config
+  itself; it just goes back to "not yet synced" and recreates the
+  document on its next run).
+- **2.2 — crawl + diff service** (`app/services/website_sync.py`):
+  fetches each configured URL directly (no recursive crawl, per the
+  WBS), extracts text via the stdlib's `html.parser.HTMLParser` (no
+  new dependency — confirmed `beautifulsoup4` wasn't needed for
+  "strip tags, keep text"), hashes it, diffs against
+  `last_content_hash`. Unchanged is a no-op. Changed content goes
+  through the existing `ingest_document()` pipeline from Phase 1.
+  **One decision beyond the WBS's literal text, made while building
+  this and worth calling out directly**: a content change on an
+  already-*published* synced document resets it to `'draft'`, not just
+  a fresh unpublished document staying `'draft'`. Without this, a
+  tenant could publish a synced page once and have it silently keep
+  updating live forever after — exactly the "instant-live" problem
+  1.0 exists to prevent, just re-introduced through the sync door
+  instead of the upload door. Tested directly
+  (`test_sync_source_changed_content_updates_same_document_and_resets_to_draft`).
+- **2.3 — admin endpoints + UI**: `POST/GET/DELETE
+  /api/documents/sync-sources` (`editor`+ to add/remove, matching
+  1.0's upload floor; `viewer`+ to list) and `POST
+  /api/documents/sync-sources/sync-now` (`admin`+, manual-trigger only
+  per the owner's kickoff decision — no cron anywhere in this). Runs
+  synchronously, not via `BackgroundTasks` like upload/reindex — an
+  admin clicking "Sync now" is explicitly waiting for the result, and
+  `sync_all_sources()`'s per-source try/except already keeps one
+  slow/broken URL from blocking the batch. Admin UI: a new "Website
+  sync" panel in `admin.html`/`admin.js` (URL list + add form + Sync
+  now button showing updated/unchanged/failed counts) — built entirely
+  from existing `admin.css` tokens and component classes from Round
+  21's redesign, nothing new needed there.
+- `tests/test_website_sync.py` added: HTML extraction (tags stripped,
+  title captured), full sync lifecycle (create on first sync, no-op on
+  unchanged, update-in-place + draft-reset on changed content), a
+  batch sync continuing past one broken URL, URL-format and duplicate-
+  URL rejection, role floors on all four endpoints, and confirming
+  deleting a sync source leaves its document alone. `httpx.get` and
+  `ingest_document` are both monkeypatched throughout — same "isolate
+  the one I/O boundary" pattern already used for `_send_email` in
+  Phase 2's transcript-email work, since this suite has no reachable
+  network for real HTTP fetches or a real embedding model to call.
+- Validated against a live MariaDB instance: full `001`→`013`,`015`→`022`
+  migration chain (the `014` gap deliberately intact, the `012`-`013`
+  gap now filled) applies cleanly on a completely fresh database, `013`
+  confirmed independently re-runnable, admin page rendering confirmed
+  to include the new panel via a live `TestClient` request.
+  Re-validated a second time, after the renumbering above, against the
+  full current chain through Phase 7's planning commit (the other
+  session's latest at push time) — not just the state this was
+  originally built against. Full suite run 3 consecutive times:
+  **154/154 passing** every time — everything from Phase 1 through
+  Phase 7's planning, no regressions anywhere.
+- **2.0 Website Content Sync is done (2.1-2.3).** Phase 3 is now 1.0
+  and 2.0 done, 3.0 (Duplicate/Conflict Detection) remains.
+
 ## Open decisions / things to confirm during Phase 3
 
-**Moot as of Round 30** — the owner decided Phase 3 stops at 1.0, so
-2.0/3.0 will never be built and these questions about them don't need
-answers. Left in place, not deleted, as a record of what would have
-needed deciding if this scope is ever revisited.
+**No longer moot** — Round 30's "stops at 1.0" was superseded by the
+owner directly (see the header note above and this session's own
+Round entry above): 2.0 is now built, and 3.0 is the one real open
+item left in Phase 3.
 
-- **3.0 cadence**: manual-trigger was assumed, not confirmed (see
-  above) — worth a direct confirmation once 1.0/2.0 are built and the
-  "Sync now" pattern is visible in the actual admin UI, in case seeing
-  it changes the owner's preference for 3.0 too.
-- **Admin console redesign (1.3)**: bringing `admin.html` onto design
-  tokens is scoped as part of 1.3 rather than a separate round — if it
-  turns out to be bigger than expected once started, it may need to
-  split into its own round rather than block 1.0's actual
-  review-workflow functionality from shipping.
+- **3.0 cadence**: manual-trigger was assumed, not confirmed at
+  kickoff — 2.0's "Sync now" pattern is now live in the actual admin
+  UI, so this is a good time for a direct confirmation on whether 3.0
+  should match it.
 - **Duplicate-flag similarity threshold (3.2)**: not yet chosen a
   concrete number for "near-duplicate enough to flag" — will propose
   one when 3.2 is actually built, based on a few real title/heading
@@ -1588,8 +1670,19 @@ needed deciding if this scope is ever revisited.
 
 ## Next action
 
-Start Phase 7, Round 36: 0.1 — change `ChatProvider.chat_completion()`
-to return `{"content", "input_tokens", "output_tokens"}` across all
-three providers, then update every existing test stub (7 files) to
-match before writing any new code, to isolate the regression risk from
-new feature work.
+Two independent threads:
+
+- **The other session** continues with Phase 7, Round 36 (their
+  numbering): 0.1 — change `ChatProvider.chat_completion()` to return
+  `{"content", "input_tokens", "output_tokens"}` across all three
+  providers, then update every existing test stub to match before
+  writing any new code.
+- **This session's own remaining scope** is now down to just Phase
+  3's 3.0 (Duplicate/Conflict Detection) — 2.1's schema
+  (`duplicate_flag`), 3.2's detection service comparing document
+  titles/headings via stdlib `difflib` (kept simple per the owner's
+  kickoff decision), and 3.3's admin endpoints + review-queue UI.
+  `docs/Phase III WBS.md` has the full scope. The 3.0 cadence
+  (manual-trigger, assumed rather than confirmed at kickoff) is worth
+  a real answer before or during that round, now that 2.0's "Sync
+  now" pattern is live in the actual admin UI to compare against.

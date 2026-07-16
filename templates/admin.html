@@ -53,6 +53,22 @@
     </section>
 
     <section class="panel">
+      <h2 class="panel-title">Website sync</h2>
+      <form id="sync-source-form" class="inline-form">
+        <input id="sync-source-url" class="field-input" type="url" placeholder="https://example.com/help/billing" required>
+        <button type="submit" class="btn-primary">Add URL</button>
+      </form>
+      <ul id="sync-source-list" class="plain-list"></ul>
+      <p id="sync-source-empty" class="empty-state" hidden>
+        <span class="empty-title">No sync sources yet</span>
+        <span class="empty-body">Add a URL above to keep a page synced into your knowledge base.</span>
+      </p>
+      <button type="button" id="sync-now-btn" class="btn-ghost">Sync now</button>
+      <p id="sync-now-status" class="hint" hidden></p>
+      <p class="hint">Synced pages start as drafts too — publish them below once they're ready. Sync is manual only; nothing runs automatically.</p>
+    </section>
+
+    <section class="panel">
       <h2 class="panel-title">Documents</h2>
       <table id="document-table" class="data-table">
         <thead>
