@@ -94,8 +94,8 @@ def test_citations_never_reference_another_tenants_chunk():
         cur = conn.cursor()
         for tenant_id, label in [(tenant_a, "A"), (tenant_b, "B")]:
             cur.execute(
-                "INSERT INTO document (tenant_id, title, filename, raw_markdown, status) "
-                "VALUES (%s, %s, %s, %s, 'ready')",
+                "INSERT INTO document (tenant_id, title, filename, raw_markdown, status, review_state) "
+                "VALUES (%s, %s, %s, %s, 'ready', 'published')",
                 (tenant_id, f"Doc {label}", f"citation-{label.lower()}.md", "# x"),
             )
             doc_id = cur.lastrowid

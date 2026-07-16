@@ -1,12 +1,14 @@
-// Minimal admin dashboard — no framework, no build step.
+// Admin dashboard — no framework, no build step.
 (function () {
   const loginView = document.getElementById("login-view");
   const dashboardView = document.getElementById("dashboard-view");
 
   // Set by the server-rendered page (see templates/admin.html) so this
-  // dashboard knows which tenant it's managing (WBS 3.1: path-param
+  // dashboard knows which tenant it's managing (WBS 3.1 Phase 2: path-param
   // tenant resolution — every API call is scoped under /t/{slug}/).
   const TENANT_BASE = "/t/" + window.TENANT_SLUG;
+
+  const REVIEW_STATES = ["draft", "review", "published"];
 
   async function api(path, options = {}) {
     const res = await fetch(TENANT_BASE + path, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
@@ -18,13 +20,13 @@
   }
 
   function showLogin() {
-    loginView.style.display = "block";
-    dashboardView.style.display = "none";
+    loginView.hidden = false;
+    dashboardView.hidden = true;
   }
 
   function showDashboard() {
-    loginView.style.display = "none";
-    dashboardView.style.display = "block";
+    loginView.hidden = true;
+    dashboardView.hidden = false;
     loadCategories();
     loadDocuments();
   }
@@ -34,6 +36,8 @@
     e.preventDefault();
     const email = document.getElementById("login-email").value;
     const password = document.getElementById("login-password").value;
+    const errorEl = document.getElementById("login-error");
+    errorEl.hidden = true;
     const res = await fetch(TENANT_BASE + "/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -42,7 +46,8 @@
     if (res.ok) {
       showDashboard();
     } else {
-      document.getElementById("login-error").textContent = "Invalid email or password.";
+      errorEl.textContent = "Invalid email or password.";
+      errorEl.hidden = false;
     }
   });
 
@@ -57,20 +62,26 @@
     const categories = await res.json();
 
     const list = document.getElementById("category-list");
+    const empty = document.getElementById("category-empty");
     list.innerHTML = "";
+    empty.hidden = categories.length > 0;
+
     const select = document.getElementById("upload-category");
     select.innerHTML = '<option value="">No category</option>';
 
     categories.forEach((c) => {
       const li = document.createElement("li");
-      li.innerHTML = `<span>${c.name}</span>`;
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = c.name;
       const delBtn = document.createElement("button");
+      delBtn.type = "button";
       delBtn.textContent = "Delete";
-      delBtn.className = "danger";
+      delBtn.className = "btn-danger";
       delBtn.onclick = async () => {
         await api(`/api/categories/${c.id}`, { method: "DELETE" });
         loadCategories();
       };
+      li.appendChild(nameSpan);
       li.appendChild(delBtn);
       list.appendChild(li);
 
@@ -91,22 +102,41 @@
   });
 
   // --- Documents ---
+  function statusBadge(d) {
+    if (d.status === "error") {
+      const msg = (d.error_message || "").replace(/"/g, "&quot;");
+      return `<span class="badge badge-error" title="${msg}">error</span>`;
+    }
+    return `<span class="badge badge-draft">${d.status}</span>`;
+  }
+
+  function reviewStateSelect(d) {
+    // WBS 1.2: editor+ can move a document through every state, in
+    // either direction — a plain select reflects that directly rather
+    // than implying a forced linear draft->review->published order.
+    const options = REVIEW_STATES.map(
+      (s) => `<option value="${s}" ${s === d.review_state ? "selected" : ""}>${s}</option>`
+    ).join("");
+    return `<select class="review-select" data-review-id="${d.id}">${options}</select>`;
+  }
+
   async function loadDocuments() {
     const res = await api("/api/documents");
     const docs = await res.json();
     const tbody = document.querySelector("#document-table tbody");
+    const empty = document.getElementById("document-empty");
     tbody.innerHTML = "";
+    empty.hidden = docs.length > 0;
+
     docs.forEach((d) => {
       const tr = document.createElement("tr");
-      const statusCell = d.status === "error"
-        ? `<span class="error" title="${(d.error_message || "").replace(/"/g, '&quot;')}">error</span>`
-        : d.status;
-      const retryBtn = d.status !== "ready" ? `<button data-retry-id="${d.id}">Retry</button>` : "";
-      const delBtn = `<button class="danger" data-id="${d.id}">Delete</button>`;
-      tr.innerHTML = `<td>${d.title}</td><td>${statusCell}</td><td>${retryBtn} ${delBtn}</td>`;
+      const retryBtn = d.status !== "ready" ? `<button type="button" class="btn-ghost" data-retry-id="${d.id}">Retry</button>` : "";
+      const delBtn = `<button type="button" class="btn-danger" data-id="${d.id}">Delete</button>`;
+      tr.innerHTML = `<td>${d.title}</td><td>${statusBadge(d)}</td><td>${reviewStateSelect(d)}</td><td><div class="actions-cell">${retryBtn}${delBtn}</div></td>`;
       tbody.appendChild(tr);
     });
-    tbody.querySelectorAll("button.danger").forEach((btn) => {
+
+    tbody.querySelectorAll("button.btn-danger").forEach((btn) => {
       btn.addEventListener("click", async () => {
         await api(`/api/documents/${btn.dataset.id}`, { method: "DELETE" });
         loadDocuments();
@@ -116,6 +146,17 @@
       btn.addEventListener("click", async () => {
         await api(`/api/documents/${btn.dataset.retryId}/reindex`, { method: "POST" });
         loadDocuments();
+      });
+    });
+    tbody.querySelectorAll("select[data-review-id]").forEach((sel) => {
+      sel.addEventListener("change", async () => {
+        await api(`/api/documents/${sel.dataset.reviewId}/review-state`, {
+          method: "POST",
+          body: JSON.stringify({ state: sel.value }),
+        });
+        // No full reload needed — the select already reflects the new
+        // value the user picked, and nothing else in the row depends
+        // on review_state.
       });
     });
   }

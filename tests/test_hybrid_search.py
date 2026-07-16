@@ -61,8 +61,8 @@ def _seed_chunk(tenant_id: int, content: str, vector: list[float], heading: str 
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO document (tenant_id, title, filename, raw_markdown, status) "
-            "VALUES (%s, 'Doc', 'd.md', '# x', 'ready')",
+            "INSERT INTO document (tenant_id, title, filename, raw_markdown, status, review_state) "
+            "VALUES (%s, 'Doc', 'd.md', '# x', 'ready', 'published')",
             (tenant_id,),
         )
         doc_id = cur.lastrowid
@@ -212,3 +212,46 @@ def test_hybrid_search_tenant_isolation():
 
     assert all("tenant A" in r.content for r in results_a)
     assert all("tenant B" in r.content for r in results_b)
+
+
+def test_keyword_search_excludes_unpublished_documents():
+    """Reconciliation test (Phase 3 x Phase 4): keyword_search() was
+    originally built with only the WBS 3.2 tenant/status isolation
+    check, before Phase 3's review_state workflow existed in this
+    session's context. Merging the two surfaced a real gap — the
+    semantic path (MySQLVectorStore.search()) was gated on
+    review_state='published', the keyword path wasn't, so
+    hybrid_search()'s keyword contribution could still resurface a
+    draft the semantic contribution correctly excluded. This is the
+    regression test for that fix — mirrors
+    test_review_workflow.py::test_retrieval_excludes_unpublished_documents
+    but for the FULLTEXT path instead of the cosine one."""
+    from app.db.pool import get_conn
+    from app.services.vector_store import keyword_search
+
+    tenant_id = _ensure_tenant("pytest-hybrid-review-state")
+    _reset_tenant_content(tenant_id)
+
+    def _seed_with_review_state(review_state: str) -> int:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO document (tenant_id, title, filename, raw_markdown, status, review_state) "
+                "VALUES (%s, 'Doc', 'd.md', '# x', 'ready', %s)",
+                (tenant_id, review_state),
+            )
+            doc_id = cur.lastrowid
+            cur.execute(
+                "INSERT INTO document_chunk (tenant_id, document_id, chunk_index, heading_path, content, token_count) "
+                "VALUES (%s, %s, 0, 'Section', %s, 10)",
+                (tenant_id, doc_id, "pytest unique widgetfrobnicator keyword content"),
+            )
+            cur.close()
+        return doc_id
+
+    _seed_with_review_state("draft")
+    _seed_with_review_state("review")
+    published_id = _seed_with_review_state("published")
+
+    results = keyword_search(tenant_id, "widgetfrobnicator keyword", top_k=10)
+    assert {r.document_id for r in results} == {published_id}
