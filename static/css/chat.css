@@ -376,6 +376,43 @@ body {
 .feedback-btn:disabled { cursor: default; }
 .feedback-btn.feedback-selected { opacity: 1; }
 
+/* ---- Escalation (Phase 6 — 1.3) ----------------------------------------- */
+.escalation-panel {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-alt);
+}
+.escalation-label { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
+.escalation-row { display: flex; gap: 6px; }
+.escalation-email {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0 10px;
+  font-size: 13px;
+}
+.escalation-email:focus { border-color: var(--accent); outline: none; }
+.escalation-submit {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink, #fff);
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.escalation-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+.escalation-status { margin-top: 6px; font-size: 12px; }
+.escalation-status.error { color: #c0392b; }
+.escalation-status.success { color: #2e7d32; }
+
 .sources-list {
   display: none;
   margin-top: 6px;

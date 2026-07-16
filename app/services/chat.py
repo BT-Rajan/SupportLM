@@ -228,8 +228,9 @@ def ask(
             (tenant_id, conversation_id, question),
         )
         cur.execute(
-            "INSERT INTO message (tenant_id, conversation_id, role, content) VALUES (%s, %s, 'assistant', %s)",
-            (tenant_id, conversation_id, answer),
+            """INSERT INTO message (tenant_id, conversation_id, role, content, needs_escalation)
+               VALUES (%s, %s, 'assistant', %s, %s)""",
+            (tenant_id, conversation_id, answer, needs_escalation),
         )
         assistant_message_id = cur.lastrowid
 

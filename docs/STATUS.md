@@ -5,11 +5,12 @@
 
 ## Current phase
 
-**Phase 6 — Round 33 complete. 2.0 SR Generation done (2.1-2.3,
-including a real schema-uniqueness bug caught and fixed by testing
-before it was pushed). 3.0 Dual Email Notification (+ deferred 1.3) is
-next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
-30). Phases 4 and 5 are complete.
+**Phase 6 (Escalation to Service Request) — COMPLETE.** All three
+sections done: 1.0 Escalation Detection (Round 32), 2.0 SR Generation
+(Round 33), 3.0 Dual Email Notification + deferred 1.3 (Round 34).
+Phase 3 is intentionally done at 1.0 (owner decision, Round 30). Phases
+4 and 5 are complete. Next: Phase 7 (Analytics & Reporting) per
+`docs/MASTER_PROMPT.md`.
 
 ## Phase progress
 
@@ -20,7 +21,7 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
 | 3     | Knowledge Base Management                | Complete — intentionally scoped to 1.0 only, by owner decision (2.0/3.0 will not be built) |
 | 4     | Retrieval & Answer Quality                | Complete |
 | 5     | Conversation Experience                   | Complete |
-| 6     | Escalation to Service Request (SR)        | In progress (planning) |
+| 6     | Escalation to Service Request (SR)        | Complete |
 | 7     | Analytics & Reporting                     | Not started |
 | 8     | Admin, Ops & Webhooks                     | Not started |
 
@@ -1464,6 +1465,74 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
 - Next: 3.0 Dual Email Notification (plus 1.3's deferred widget UI,
   built together with 3.4's endpoint).
 
+### Round 34 — completed 3.0 Dual Email Notification + deferred 1.3 — Phase 6 done
+- **3.1 — schema**: `migrations/021_tenant_support_email.sql` adds
+  `tenant_support_config` (`support_email NOT NULL` — intentionally not
+  nullable-with-a-fallback the way `tenant_llm_config` is, since the
+  kickoff decision was "required," not "override with a fallback").
+- **A dependency surfaced while building 3.4's validation**:
+  `docs/Phase VI WBS.md`'s 3.4 note requires verifying a submitted
+  `message_id` is the SPECIFIC message that signaled escalation, not
+  just any assistant message — but `needs_escalation` was, until now,
+  only ever a transient value `ask()` returned, never stored.
+  `migrations/022_message_needs_escalation.sql` adds `message
+  .needs_escalation` (defaults `FALSE`, not `NULL` — every existing
+  message legitimately never signaled escalation, which is the
+  accurate historical value); `chat.py`'s message INSERT now persists
+  it.
+- **3.2 — `complete_escalation()`** (`app/services/escalation.py`):
+  validates email format, message exists/belongs to tenant, message is
+  the specific assistant message that signaled escalation, no SR
+  already exists for it, and a support-email config exists for the
+  tenant — in that order. **Deliberately sends both emails BEFORE
+  inserting the `service_request` row**, mirroring
+  `transcript_email.py`'s "only persist after a successful send"
+  philosophy: a failed send leaves a retryable state (message_id has
+  no row yet), not a permanently-stuck one (`message_id` is UNIQUE on
+  that table). Documented, not hidden, tradeoff: if the company email
+  succeeds but the visitor's then fails, a retry produces a genuinely
+  new SR number and the company gets a second, similar email — a minor
+  real-world imperfection, not data loss, judged worth it for
+  guaranteeing retries are never permanently blocked by a transient
+  SMTP hiccup.
+- **3.3 — admin endpoint**: `app/api/support_config.py` —
+  `GET`/`POST /api/tenant/support-config` (`admin`+, same floor as
+  every other live-config surface this project has built). UI panel
+  deferred to the same backlog as the LLM-config/prompt-version
+  panels.
+- **3.4 — endpoint**: `POST /api/chat/{message_id}/escalate`
+  (`app/api/chat.py`, anonymous) — maps `EscalationError` to
+  404 (message not found)/409 (already escalated)/400 (everything
+  else: bad email, wrong message, no support config).
+- **1.3 (deferred from Round 32) — widget UI**: `chat.js`'s new
+  `attachEscalation()` renders an inline panel (not folded into the
+  meta row like feedback/sources — this needs an email input and a
+  submit action, more visual room) under the assistant bubble whenever
+  `needs_escalation: true` comes back from `/api/chat`.
+- `tests/test_escalation_completion.py` (8 tests, exercised through
+  real `ask()` calls with escalating/non-escalating stub providers,
+  not hand-crafted DB rows): invalid email, unknown message, a message
+  that never signaled escalation, no support config (and confirms no
+  SR row gets created), successful escalation sends both emails with
+  the right recipients/SR number and persists the row, a second
+  attempt on the same message is rejected, **a failed send doesn't
+  persist an SR and a subsequent retry succeeds** (the core tradeoff
+  under test), cross-tenant message_id rejected.
+  `tests/test_escalation_api.py` (7 tests): the full endpoint stack —
+  happy path, 404/409/400 mapping, admin-only support-config gating,
+  invalid-email rejection, and a full get/set roundtrip.
+- Validated against a real MariaDB instance: full `001`→`022`
+  migration chain (with the deliberate `013`-`014` gap) applies
+  cleanly on a freshly rebuilt database, app imports cleanly with all
+  35 routes. Full suite run 3 consecutive times against the same DB
+  with no cleanup between runs: **144/144 passing every time**, no
+  regressions anywhere in Phases 1-5 or Phase 6's 1.0/2.0.
+- **Phase 6 (Escalation to Service Request) is done: 1.0 Escalation
+  Detection, 2.0 SR Generation, 3.0 Dual Email Notification all
+  complete.** Support-config admin UI panel added to the existing
+  backlog alongside LLM-config/prompt-version panels. Next: Phase 7
+  (Analytics & Reporting) per `docs/MASTER_PROMPT.md`.
+
 ## Open decisions / things to confirm during Phase 3
 
 **Moot as of Round 30** — the owner decided Phase 3 stops at 1.0, so
@@ -1487,8 +1556,9 @@ needed deciding if this scope is ever revisited.
 
 ## Next action
 
-Start Phase 6, Round 34: 3.1 —
-`migrations/021_tenant_support_email.sql` (`tenant_support_config`),
-then 3.2-3.4 — the escalation-completion flow, admin endpoint, and
-`POST /api/chat/{message_id}/escalate`, plus 1.3's widget UI (built
-together since one needs the other to be testable).
+Phase 6 is complete. Start Phase 7 (Analytics & Reporting) planning:
+write `docs/Phase VII WBS.md` breaking down the usage dashboard,
+unanswered/low-confidence question log, CSAT tied to thumbs up/down,
+per-tenant LLM cost tracking, and exportable reports per
+`docs/MASTER_PROMPT.md`'s Phase 7 scope — same kickoff-questions
+discipline used for every phase so far.

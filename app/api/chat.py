@@ -9,6 +9,7 @@ from app.core.tenant_scope import resolve_tenant
 from app.core.theme import resolve_theme
 from app.db.pool import get_conn
 from app.services.chat import ask
+from app.services.escalation import EscalationError, complete_escalation
 from app.services.transcript_email import TranscriptEmailError, send_transcript_email
 from app.services.usage import message_limit_warning
 
@@ -29,6 +30,10 @@ class TranscriptRequest(BaseModel):
 
 class FeedbackRequest(BaseModel):
     rating: str  # 'up' or 'down'
+
+
+class EscalationRequest(BaseModel):
+    email: str
 
 
 @router.post("")
@@ -124,3 +129,23 @@ def post_message_feedback(message_id: int, req: FeedbackRequest, tenant_id: int 
         cur.close()
 
     return {"ok": True}
+
+
+@router.post("/{message_id}/escalate")
+def post_escalate(message_id: int, req: EscalationRequest, tenant_id: int = Depends(resolve_tenant)):
+    """3.4: anonymous, same auth-free surface as every other endpoint
+    in this file. Only ever called from the widget after ask() has
+    already returned needs_escalation: true for this exact message —
+    complete_escalation() re-validates that server-side rather than
+    trusting the client's word for it."""
+    try:
+        result = complete_escalation(tenant_id, message_id, req.email)
+    except EscalationError as exc:
+        detail = str(exc)
+        if detail == "Message not found.":
+            raise HTTPException(status_code=404, detail=detail)
+        if detail == "A support request was already created for this conversation.":
+            raise HTTPException(status_code=409, detail=detail)
+        raise HTTPException(status_code=400, detail=detail)
+
+    return result

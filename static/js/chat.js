@@ -83,6 +83,97 @@
     return { row, wrap, meta };
   }
 
+  function attachEscalation(wrap, messageId) {
+    // Phase 6 — 1.3: shown as its own inline panel under the assistant
+    // bubble, not folded into the meta row the way feedback/sources
+    // are — this needs an email input and a submit action, not just an
+    // icon click, so it gets more visual room.
+    const panel = document.createElement("div");
+    panel.className = "escalation-panel";
+
+    const label = document.createElement("div");
+    label.className = "escalation-label";
+    label.textContent = "I couldn't fully answer that. Want a team member to follow up? Enter your email:";
+    panel.appendChild(label);
+
+    const row = document.createElement("div");
+    row.className = "escalation-row";
+
+    const emailInput = document.createElement("input");
+    emailInput.type = "email";
+    emailInput.className = "escalation-email";
+    emailInput.placeholder = "you@example.com";
+
+    const submitBtn = document.createElement("button");
+    submitBtn.type = "button";
+    submitBtn.className = "escalation-submit";
+    submitBtn.textContent = "Submit";
+
+    const status = document.createElement("div");
+    status.className = "escalation-status";
+
+    row.appendChild(emailInput);
+    row.appendChild(submitBtn);
+    panel.appendChild(row);
+    panel.appendChild(status);
+    wrap.appendChild(panel);
+
+    async function submit() {
+      const email = emailInput.value.trim();
+      if (!email) {
+        status.textContent = "Please enter an email address.";
+        status.className = "escalation-status error";
+        return;
+      }
+      submitBtn.disabled = true;
+      emailInput.disabled = true;
+      status.textContent = "";
+
+      try {
+        const res = await fetch(TENANT_BASE + "/api/chat/" + messageId + "/escalate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email }),
+        });
+        const rawBody = await res.text();
+        let data = null;
+        try {
+          data = rawBody ? JSON.parse(rawBody) : null;
+        } catch (parseErr) {
+          status.textContent = "Server error (" + res.status + ").";
+          status.className = "escalation-status error";
+          submitBtn.disabled = false;
+          emailInput.disabled = false;
+          return;
+        }
+
+        if (!res.ok) {
+          status.textContent = (data && data.detail) || "Could not create a support request.";
+          status.className = "escalation-status error";
+          submitBtn.disabled = false;
+          emailInput.disabled = false;
+          return;
+        }
+
+        status.textContent = "Support request " + data.sr_number + " created — check your email.";
+        status.className = "escalation-status success";
+      } catch (err) {
+        status.textContent = "Network error: could not reach the server.";
+        status.className = "escalation-status error";
+        submitBtn.disabled = false;
+        emailInput.disabled = false;
+      }
+    }
+
+    submitBtn.addEventListener("click", submit);
+    emailInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      }
+    });
+  }
+
   function attachFeedback(meta, messageId) {
     // Phase 5 — 3.3: simple thumbs up/down, anonymous, no comment
     // field. Disabled immediately on click — the server enforces "no
@@ -342,9 +433,10 @@
 
       conversationId = data.conversation_id;
       if (conversationId) enableTranscriptButton();
-      const { meta } = appendMessage("assistant", data.answer);
+      const { wrap, meta } = appendMessage("assistant", data.answer);
       attachSources(meta, data.sources);
       attachFeedback(meta, data.message_id);
+      if (data.needs_escalation) attachEscalation(wrap, data.message_id);
     } catch (err) {
       hideTyping();
       appendMessage("error", "Network error: could not reach the server. " + (err && err.message ? err.message : ""));
