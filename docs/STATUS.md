@@ -5,13 +5,20 @@
 
 ## Current phase
 
-**Phase 5 (Conversation Experience) — COMPLETE.** All three sections
-done: 1.0 Multi-turn Memory (Round 26), 2.0 Multi-language Support
-(Round 27), 3.0 Thumbs Up/Down Feedback (Round 28). Phase 4 is complete
-(see above). Phase 3 is marked complete per owner confirmation — see
-the Round 21 note below for what this session could and couldn't
-independently verify. Next: Phase 6 (Escalation to Service Request)
-per `docs/MASTER_PROMPT.md`.
+**Cross-session reconciliation (see the last Round log entry for the
+full story).** Two sessions worked on this repo concurrently without
+knowing about each other. Ground truth, reconciled: **Phase 3 is
+genuinely NOT complete** — only 1.0 (Content Review Workflow) is done;
+2.0/3.0 remain unbuilt. The "Phase 3 complete per owner confirmation"
+note that used to be here was a cross-session mixup — a different
+session was told Phase 3 was done outside this repo, which was
+inaccurate; it was actively being built here, just not yet pushed.
+**Phase 5 (Conversation Experience) IS genuinely complete** — 1.0
+Multi-turn Memory (Round 26), 2.0 Multi-language Support (Round 27),
+and 3.0 Thumbs Up/Down Feedback (Round 28) all done, all on top of a
+Phase 4 that's also genuinely complete. Next: finish Phase 3 (2.0/3.0)
+before starting Phase 6, since Phase 3 was never actually done despite
+what this file said for a while.
 
 ## Phase progress
 
@@ -19,7 +26,7 @@ per `docs/MASTER_PROMPT.md`.
 |-------|-----------------------------------------|-------------|
 | 1     | Multi-tenancy & Org Foundation           | Complete (6.0 skipped by owner decision) |
 | 2     | Access Control & Anonymous-Chat Email    | Complete    |
-| 3     | Knowledge Base Management                | Complete (per owner confirmation; 1.0-6.0 build not in this repo's round log — see Round 21 note) |
+| 3     | Knowledge Base Management                | In progress — 1.0 done, 2.0/3.0 not started |
 | 4     | Retrieval & Answer Quality                | Complete |
 | 5     | Conversation Experience                   | Complete |
 | 6     | Escalation to Service Request (SR)        | Not started |
@@ -815,55 +822,139 @@ per `docs/MASTER_PROMPT.md`.
 - **Phase 3 planning is done.** Starting 1.1 (review-state migration)
   next, same discipline as every prior phase kickoff.
 
-### Round 21 — Phase 3 status reconciliation + Phase 4 planning
-- **Discrepancy found and flagged before proceeding**: this session's
-  round log (Round 20) only showed Phase 3 *planning* complete —
-  `docs/Phase III WBS.md` written, kickoff decisions confirmed — with
-  no 1.0-6.0 build rounds logged, no new migrations (012-014) present,
-  and a single commit at `main` HEAD matching exactly the Round 20
-  planning state. Raised this explicitly rather than silently
-  proceeding or silently marking Phase 3 done.
-- **Owner confirmed Phase 3 was completed outside this repo/session.**
-  Per the owner's explicit instruction, proceeding to Phase 4 on that
-  basis. Recorded here rather than quietly editing the phase-progress
-  table with no explanation, so a future session reading this file
-  understands why Phase 3 shows complete with no corresponding round
-  log — this is a known gap in this file's own record, not an
-  oversight to re-investigate.
-- Wrote `docs/Phase IV WBS.md`, breaking the master prompt's Phase 4
-  scope into 1.0 Hybrid Search, 2.0 Multi-LLM Provider Support, 3.0
-  Prompt Versioning, 4.0 Testing & Validation, 5.0 Documentation &
-  Handoff — same shape as Phases 1-3's WBS docs.
-- Confirmed three kickoff decisions directly with the owner rather
-  than assuming: **hybrid search** fuses MySQL `FULLTEXT` keyword
-  search with the existing cosine-similarity vector search via a
-  weighted score blend (not RRF, not a keyword-only fallback);
-  **multi-LLM** supports DeepSeek/OpenAI/Anthropic, selectable
-  **per-tenant** (not a single global default); **prompt versioning**
-  is **per-tenant**, admin-UI-editable, with rollback (not global,
-  not script-only).
-- Read the existing code this phase touches before writing the WBS:
-  `app/services/vector_store.py` (brute-force cosine similarity,
-  `VectorStore` protocol to mirror for the new `ChatProvider`
-  protocol), `app/core/llm_client.py` (today hard-codes DeepSeek's
-  request shape with no provider abstraction — exactly what 2.0
-  replaces), `app/services/chat.py`'s `ask()` (the one function all
-  three WBS sections above ultimately touch, confirmed as the reason
-  3.0 is sequenced last rather than in parallel with 1.0/2.0).
-- Migration numbering: initially drafted starting at `012` (the same
-  numbers Phase 3's WBS had reserved), then owner confirmed being
-  unsure whether Phase 3's actual migrations (built outside this repo)
-  used those numbers — so, to be safe, **renumbered Phase 4 to start
-  at `015`** instead of `012`, leaving `012`-`014` as a gap this repo
-  will never fill (Phase 3's real migrations, whatever they're
-  numbered, are assumed to already occupy that range elsewhere).
-  `docs/Phase IV WBS.md` updated accordingly:
-  `015_hybrid_search.sql` (1.1), `016_llm_provider_config.sql` (2.1),
-  `017_prompt_versions.sql` (3.1).
-- **Phase 4 planning is done.** Starting 1.1 (FULLTEXT index migration,
-  `015_hybrid_search.sql`) next.
+### Round 21 — completed 1.0 (1.1, 1.2, 1.3)
+- **1.1 — schema**: `migrations/012_document_review_workflow.sql` adds
+  `document.review_state`, deliberately separate from `status` (see
+  `docs/Phase III WBS.md`'s collision writeup). Existing documents
+  backfilled to `'published'` in the same migration so nothing already
+  live vanishes from retrieval the moment it runs.
+  **Important, and different from every migration in Phases 1-2**:
+  the backfill `UPDATE` is a genuine one-time operation, not endlessly
+  re-runnable — re-applying it after real drafts exist would silently
+  flip them back to `'published'`. Caught this the hard way: routinely
+  re-ran the migration during validation the way every prior round
+  did, and it silently re-published draft/review test documents left
+  over from an earlier suite run, which then broke a later test in a
+  confusing way (an exact-match assertion picking up leftover rows).
+  Documented in the migration itself with the same "one-time, not
+  endlessly safe" framing `004_backfill_default_tenant.sql` already
+  established in Phase 1 — this project already had the right pattern
+  for this exact situation, I just didn't apply it until the mistake
+  surfaced it. Verified the *schema* half (`ALTER ... ADD COLUMN IF
+  NOT EXISTS`) genuinely is idempotent on its own, in isolation, on a
+  disposable scratch database — it's specifically the backfill that
+  isn't safe to repeat.
+- **1.2 — retrieval gating + transition endpoint**:
+  `vector_store.py`'s `search()` now requires `status = 'ready' AND
+  review_state = 'published'`, not just `status = 'ready'`. New `POST
+  /api/documents/{id}/review-state` (`editor`+, any direction, no
+  forced ordering, per the owner's decision). Caught a second real bug
+  before it shipped: the endpoint's original 404 check used the
+  `UPDATE`'s rowcount, but pymysql reports rows *changed* not rows
+  *matched* — setting a document's review_state to the value it
+  already has updates 0 rows, which would have 404'd a document that
+  actually exists. Fixed by checking existence via `SELECT` first,
+  matching the pattern `reindex_document` already used for the same
+  reason. Caught a third, in the tests: an existing Phase 1 test
+  (`test_vector_store_search_only_returns_own_tenant_chunks`) would
+  have kept "passing" on empty result sets after this change — its
+  assertions were all vacuously true for zero results — so it was
+  silently testing nothing. Fixed the fixture (documents there now
+  need `review_state = 'published'` too) and added explicit
+  non-emptiness assertions so it can't silently pass that way again.
+- **1.3 — admin UI + design-system migration**: `templates/admin.html`
+  document table gets a `review_state` badge and a select to move it
+  directly. Also finally brought `admin.html`/`admin.css`/`admin.js`
+  onto `docs/DESIGN_SYSTEM.md` tokens — the console had predated the
+  design system entirely since it was first built. Documented as a new
+  "Admin console" section in `docs/DESIGN_SYSTEM.md`, including the
+  one deliberate deviation from its own empty-state rule (reasoning
+  given inline there, not just in code).
+- `tests/test_review_workflow.py` added: upload defaults to draft,
+  retrieval excludes draft/review (only `ready`+`published` shows up),
+  editor can transition/viewer can't, setting the same state twice
+  doesn't 404 (regression test for the rowcount bug above), invalid
+  state rejected, unknown document 404s.
+- Validated against a live MariaDB instance: rebuilt fresh, applied
+  the full `001`→`012` chain cleanly, ran the suite repeatedly —
+  **64/64 passing** across 4 consecutive clean runs (the first of the
+  four rebuild+run cycles surfaced both the migration re-run pitfall
+  above and a test-isolation bug in my own new test — fixed both, then
+  reconfirmed clean).
+- **1.0 Content Review Workflow is done (1.1-1.3).**
 
-### Round 22 — completed 1.0 Hybrid Search (1.1-1.4)
+### Round 22 — cross-session reconciliation + Phase 4 planning
+- **What actually happened, corrected from this file's own earlier,
+  wrong account**: a *different* Claude session was working on this
+  same repo concurrently with the session that built Round 21 above.
+  The owner told that other session "Phase 3 was completed outside
+  this repo/session" — which was not accurate; Phase 3's 1.0 was, at
+  that moment, actively being built in the session that produced
+  Round 21, just not yet pushed. That other session took the owner's
+  statement at face value (reasonably — it had no way to independently
+  verify a claim about work happening somewhere it couldn't see),
+  marked Phase 3 complete on that basis, and proceeded straight to
+  Phase 4 planning and Round "22"'s Hybrid Search build (renumbered to
+  Round 23 below). This file's previous version of this entry recorded
+  that "Phase 3 was completed outside this repo" as if it were
+  confirmed fact — it wasn't; it was an honest mixup between two
+  concurrent sessions the owner was running. Corrected here once both
+  sessions' histories were compared directly.
+- **Reconciliation, per the owner's explicit instruction**: Round 21's
+  Phase 3 1.0 work (this session) is authoritative for Phases 1-3;
+  Phase 4's planning and 1.0 build (the other session, renumbered
+  Round 22→ this entry, Round 23 below) stands as-is for Phase 4
+  onward. Reconciled via `git stash` + fast-forward + `stash pop`,
+  not a merge commit — the two sessions' local histories never
+  actually diverged at the commit level (this session simply hadn't
+  pushed Round 21 yet when the other session pushed its planning and
+  build), so a linear round-number renumbering was enough; no
+  conflicting commits needed resolving, just two conflicting
+  *files-in-progress*.
+- **One real technical conflict, not just a bookkeeping one**: the
+  other session's `keyword_search()` (Phase 4's 1.2, part of Round 23
+  below) was built with only `status = 'ready'` scoping — reasonable
+  at the time, since that session believed `review_state` didn't
+  exist yet. Merged in Round 21's `review_state = 'published'` gate
+  from `MySQLVectorStore.search()`, but `keyword_search()` needed the
+  identical gate added by hand — a plain file merge doesn't know that
+  two independently-correct-looking WHERE clauses need to agree with
+  each other. Without this fix, `hybrid_search()`'s keyword
+  contribution could have resurfaced a draft document that its
+  semantic contribution correctly excluded. Added
+  `tests/test_hybrid_search.py::test_keyword_search_excludes_unpublished_documents`
+  as the regression test for this specific gap. Also fixed
+  `test_hybrid_search.py`'s `_seed_chunk` fixture, which — like two
+  other pre-existing Phase 1/2 test fixtures Round 21 already had to
+  fix for the same reason — inserted documents without `review_state`,
+  so they'd default to `'draft'` and silently return zero search
+  results once the gate landed.
+- **Migration numbering resolved itself by luck, not by this
+  reconciliation**: the other session, uncertain whether Phase 3's
+  "elsewhere" migrations used `012`-`014`, preemptively renumbered
+  Phase 4 to start at `015` instead. Phase 3's real migration is (and
+  was always going to be) `012`, so there's no actual collision either
+  way — `012` is Phase 3's, `015`+ is Phase 4's, `013`-`014` remain
+  open for Phase 3's still-unbuilt 2.0/3.0. Nothing needed renaming.
+- Full suite re-validated after reconciliation against a freshly
+  rebuilt live MariaDB instance: complete `001`→`015` migration chain
+  (skipping the intentionally-unused `013`-`014` gap) applies cleanly,
+  and the combined suite — Phase 1 through Phase 3's 1.0 plus Phase
+  4's 1.0 — passes together with the `keyword_search()` fix in place.
+- Everything below this point (Phase 4 planning + the Hybrid Search
+  build, renumbered Round 23) is the other session's real work,
+  content-unmodified — reviewed for the reconciliation above but not
+  otherwise altered. One further renumbering was needed on top of
+  this: the other session kept pushing (Multi-LLM, Prompt Versioning,
+  Phase 5 planning, Multi-turn Memory, Multi-language) *while this
+  reconciliation was happening*, and its own next round reused the
+  number "23" for real new content (Multi-LLM Provider Support),
+  colliding with this reconciliation's already-renumbered "Round 23"
+  (Hybrid Search). Everything from the real Multi-LLM round onward is
+  shifted +1 here (23→24, 24→25, 25→26, 26→27, 27→28) to keep the
+  sequence clean — content untouched, only the round numbers moved.
+
+### Round 23 — completed 1.0 Hybrid Search (1.1-1.4)
 - **1.1 — schema**: `migrations/015_hybrid_search.sql` adds a native
   MySQL/MariaDB `FULLTEXT` index on `document_chunk.content`
   (`ADD FULLTEXT INDEX IF NOT EXISTS`, same idempotency pattern as
@@ -875,6 +966,8 @@ per `docs/MASTER_PROMPT.md`.
   identically to the existing semantic search (WBS 3.2's isolation
   rule applies here too — a keyword path is just as capable of
   leaking cross-tenant content as the vector one if left unscoped).
+  *Round 22 note: also needed `review_state = 'published'` scoping,
+  added during cross-session reconciliation — see above.*
 - **1.3 — score fusion**: `hybrid_search()` — pulls a wider pool
   (default 20) from each side, independently min-max normalizes each
   side's scores to [0,1], blends via `(1-keyword_weight) * semantic +
@@ -913,7 +1006,7 @@ per `docs/MASTER_PROMPT.md`.
   Support — `ChatProvider` protocol + DeepSeek/OpenAI/Anthropic
   implementations, selected per-tenant.
 
-### Round 23 — completed 2.0 Multi-LLM Provider Support (2.1-2.4, UI panel pending)
+### Round 24 — completed 2.0 Multi-LLM Provider Support (2.1-2.4, UI panel pending)
 - **2.1 — schema**: `migrations/016_llm_provider_config.sql` adds
   `tenant_llm_config` (1:1 with `tenant`: `provider`
   `ENUM('deepseek','openai','anthropic')`, `model`, `api_key` NULL).
@@ -984,7 +1077,7 @@ per `docs/MASTER_PROMPT.md`.
   with the admin UI panel as an explicitly open item (see below), not
   silently deferred. Next: 3.0 Prompt Versioning.
 
-### Round 24 — completed 3.0 Prompt Versioning (3.1-3.4) — Phase 4 done
+### Round 25 — completed 3.0 Prompt Versioning (3.1-3.4) — Phase 4 done
 - **3.1 — schema**: `migrations/017_prompt_versions.sql` adds
   `tenant_prompt_version` (append-only: `create_version()` never
   overwrites, only inserts) and `tenant.active_prompt_version_id`
@@ -1049,7 +1142,7 @@ per `docs/MASTER_PROMPT.md`.
   log) and 5.0 Documentation & Handoff — then Phase 5 (Conversation
   Experience) per `docs/MASTER_PROMPT.md`.
 
-### Round 25 — Phase 5 planning (Conversation Experience)
+### Round 26 — Phase 5 planning (Conversation Experience)
 - Wrote `docs/Phase V WBS.md`, breaking the master prompt's Phase 5
   scope into 1.0 Multi-turn Memory, 2.0 Multi-language Support, 3.0
   Thumbs Up/Down Feedback, 4.0 Testing & Validation, 5.0 Documentation
@@ -1085,7 +1178,7 @@ per `docs/MASTER_PROMPT.md`.
 - **Phase 5 planning is done.** Starting 1.1 (fetch conversation
   history in `ask()`) next.
 
-### Round 26 — completed 1.0 Multi-turn Memory (1.1-1.4)
+### Round 27 — completed 1.0 Multi-turn Memory (1.1-1.4)
 - **1.1 — fetch history**: new `_fetch_history()` in
   `app/services/chat.py` — every prior `message` row for the
   conversation, oldest first. Cross-tenant `conversation_id` reuse is
@@ -1129,7 +1222,7 @@ per `docs/MASTER_PROMPT.md`.
 - **1.0 Multi-turn Memory is done (1.1-1.4).** Next: 2.0 Multi-language
   Support.
 
-### Round 27 — completed 2.0 Multi-language Support (2.1-2.4)
+### Round 28 — completed 2.0 Multi-language Support (2.1-2.4)
 - **2.1 — schema**: `migrations/018_conversation_language.sql` adds
   `conversation.language` (nullable — same "explicit override, no
   forced default" contract as every other nullable config column this
@@ -1217,6 +1310,58 @@ per `docs/MASTER_PROMPT.md`.
   UI backlog item. Next: Phase 6 (Escalation to Service Request) per
   `docs/MASTER_PROMPT.md`.
 
+### Round 29 — cross-session merge reconciliation (Phase 3 1.0 + Phase 4/5 continuation)
+- On pushing Round 28, the remote had diverged: a **different
+  concurrent session** had pushed real Phase 3 1.0 (Content Review
+  Workflow) work — `migrations/012_document_review_workflow.sql`,
+  `review_state` gating in `MySQLVectorStore.search()`, a full
+  `admin.html`/`admin.css`/`admin.js` rebuild onto
+  `docs/DESIGN_SYSTEM.md` tokens, and `tests/test_review_workflow.py`
+  — plus its own fix to this session's `keyword_search()` (Phase 4)
+  so its FULLTEXT contribution respected the same `review_state`
+  gate the semantic side got, with a regression test for it.
+- **Merged via `git merge`, not a force-push.** Ran it on a scratch
+  branch first to inspect every conflict before touching `main`. Only
+  one file actually conflicted — `docs/STATUS.md` — because both
+  sessions had independently rewritten large stretches of the same
+  narrative sections after forking from the same commit
+  (`a77ed0e`, Round 27). Everything else (`vector_store.py`,
+  `documents.py`, the three shared test files) merged cleanly with no
+  conflicts, since neither session had touched the same lines of code
+  — a good sign the two bodies of work were genuinely independent, not
+  overlapping.
+- **Resolved `docs/STATUS.md` by keeping whichever side had the more
+  accurate, more recent ground truth for each claim** — not by
+  mechanically picking one side wholesale: Phase 5 is genuinely
+  complete (this session's Round 26-28, more recent than the other
+  session's snapshot), while Phase 3 is genuinely NOT complete beyond
+  1.0 (the other session's real, verified work — corrected the
+  "complete per owner confirmation" note this file carried since
+  Round 21, which was a mixup, not a fact).
+- No migration-numbering collision: the other session's real migration
+  landed as `012`, exactly the number this session left as a
+  deliberate gap back at Round 21/22 for this exact reason. Their
+  planned `019_message_feedback.sql` (referenced in their half of the
+  "Next action" conflict, for their own future Round 29) was never
+  actually written as a file — this session had already built and
+  pushed the real `019_message_feedback.sql` in Round 28, so there's
+  no file collision, just a moot forward-reference in prose.
+- Full suite run against the merged tree before pushing (see the
+  validation note right after this entry) to confirm the merge didn't
+  silently break either session's work.
+- **Validated**: full `001`→`012`,`015`-`019` migration chain (the
+  deliberate `013`-`014` gap intact) applies cleanly on a freshly
+  rebuilt database. Full suite run 3 consecutive times against the
+  same DB with no cleanup between runs: **118/118 passing every
+  time** — both sessions' work (Phase 3's 1.0, Phase 4's complete
+  scope, Phase 5's complete scope) verified functioning together, not
+  just merged textually.
+- **Open, unresolved**: Phase 3's 2.0 (Website Content Sync) and 3.0
+  (Duplicate/Conflict Detection) are still genuinely unbuilt — neither
+  concurrent session picked them up. This needs an explicit owner
+  decision (see "Next action" below), not another session quietly
+  choosing for them.
+
 ## Open decisions / things to confirm during Phase 3
 
 - **3.0 cadence**: manual-trigger was assumed, not confirmed (see
@@ -1235,9 +1380,15 @@ per `docs/MASTER_PROMPT.md`.
 
 ## Next action
 
-Phase 5 is complete. Start Phase 6 (Escalation to Service Request)
-planning: write `docs/Phase VI WBS.md` breaking down SR generation
-(unique SR number, full chat history attached) and dual email
-notification (company support inbox + end user) per
-`docs/MASTER_PROMPT.md`'s Phase 6 scope — same kickoff-questions
-discipline used for every phase so far.
+Phase 5 is genuinely complete (see reconciliation note above), and so
+is Phase 4. Phase 3's 2.0 (Website Content Sync) and 3.0
+(Duplicate/Conflict Detection) are **still genuinely unbuilt** — this
+was never picked up by either concurrent session: the other session
+paused for reconciliation right after 1.0, and this session was told
+(inaccurately) that Phase 3 was already done outside the repo and
+proceeded straight to Phase 4. `docs/Phase III WBS.md` still has the
+full scope and the owner's kickoff decisions for both remaining
+sections. **This needs an explicit owner call** — circle back and
+finish Phase 3's 2.0/3.0 now, or treat Phase 3 as intentionally landing
+at "1.0 only" and move on to Phase 6 — rather than a third session
+silently deciding for them again.

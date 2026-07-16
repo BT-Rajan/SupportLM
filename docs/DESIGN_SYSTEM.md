@@ -146,3 +146,33 @@ is NOT a second design system — it's one controlled seam into this one.
 6. Accessibility floor carried forward to every new screen: visible
    focus rings (`:focus-visible` block), `prefers-reduced-motion`
    respected for any animation, semantic HTML over div-soup.
+
+## Admin console (built Phase 3, WBS 1.3)
+
+`templates/admin.html` / `static/css/admin.css` / `static/js/admin.js`
+were the first real application of the six rules above — they'd sat
+unfollowed since whenever this section was written; the admin console
+predated the design system entirely (system-ui font, hardcoded
+`#4f46e5`/`#dc2626`, no tokens). Rebuilt onto the same `:root` block as
+`chat.css` (duplicated, not shared — see rule 2's own note: still only
+2 stylesheets, the "3+" trigger for extracting `tokens.css` hasn't
+fired).
+
+- **Badges** (`.badge-draft` / `.badge-review` / `.badge-published` /
+  `.badge-error`): `--font-mono`, small pill, reusing the exact
+  `--accent`/`--accent-soft`/error-red already established by
+  `.ai-tag` and `.transcript-status` — no new colors introduced, and
+  `--live` is deliberately not used here (reserved for the chat
+  widget's online indicator only).
+- **Review-state control**: a plain `<select>` per document row, not
+  a multi-step wizard or forward-only button chain — matches the
+  owner's 1.0 decision that editor+ can move a document to any of the
+  three states directly, in either direction.
+- **Rule 5 (empty states), one deliberate deviation**: the "primary
+  action" a `.empty-state` normally needs is the add/upload form
+  directly above it on the same screen, not a duplicate CTA inside
+  the empty-state block itself. Different from `.welcome` in the chat
+  widget, where the composer is a separate pane below the fold — here
+  the form and the list it populates share one screen with nothing
+  between them, so a second button pointing at the same form immediately
+  above would be redundant, not clarifying.

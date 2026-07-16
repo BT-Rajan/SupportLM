@@ -37,9 +37,15 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 class MySQLVectorStore:
     """Brute-force cosine similarity, computed in Python over rows pulled
     from MySQL. Only reads chunks belonging to `tenant_id`'s 'ready'
-    documents — WBS 3.2: this used to scan every tenant's chunks, which
-    meant tenant A's questions could get answered (and cited!) from
-    tenant B's knowledge base."""
+    AND 'published' documents — WBS 3.2 (Phase 2) added the 'ready'
+    half of this (tenant isolation); WBS 1.2 (Phase 3) adds the
+    'published' half. Both checks are independent and both must pass:
+    `status = 'ready'` means ingestion succeeded, `review_state =
+    'published'` means it's editorially approved to be customer-facing
+    — a document can be one without the other (freshly-ingested but
+    still a draft; or previously published, now mid-reindex and
+    temporarily 'processing'), and either failing is enough to exclude
+    it from what a visitor's question can be answered from."""
 
     def search(self, tenant_id: int, query_vector: list[float], top_k: int = 5) -> list[SearchResult]:
         with get_cursor() as cur:
@@ -49,7 +55,7 @@ class MySQLVectorStore:
                 FROM embedding e
                 JOIN document_chunk dc ON dc.id = e.chunk_id
                 JOIN document d ON d.id = dc.document_id
-                WHERE e.tenant_id = %s AND d.status = 'ready'
+                WHERE e.tenant_id = %s AND d.status = 'ready' AND d.review_state = 'published'
                 """,
                 (tenant_id,),
             )
@@ -82,11 +88,17 @@ _semantic_store = MySQLVectorStore()
 def keyword_search(tenant_id: int, query: str, top_k: int = 5) -> list[SearchResult]:
     """MySQL FULLTEXT natural-language search over document_chunk.content.
 
-    Phase 4 — 1.2. Same tenant/status scoping as MySQLVectorStore.search()
-    (WBS 3.2's isolation rule applies here too — a keyword search is just
-    as capable of leaking cross-tenant content as a vector one if left
-    unscoped). Returns SearchResult with `similarity` holding the raw
-    MySQL MATCH() relevance score (NOT comparable to cosine similarity —
+    Phase 4 — 1.2. Same tenant/status/review-state scoping as
+    MySQLVectorStore.search() — a keyword search is just as capable of
+    leaking cross-tenant or unpublished-draft content as a vector one
+    if left unscoped (WBS 3.2 (Phase 2) for the tenant/status half,
+    WBS 1.2 (Phase 3) for the review_state half — this function was
+    originally built without the review_state half, since it landed
+    before Phase 3's review workflow was reconciled into this file;
+    fixed here so hybrid_search()'s keyword contribution can't
+    resurface a draft that the semantic contribution already excludes).
+    Returns SearchResult with `similarity` holding the raw MySQL
+    MATCH() relevance score (NOT comparable to cosine similarity —
     1.3's hybrid_search() normalizes both independently before blending).
     """
     with get_cursor() as cur:
@@ -96,7 +108,7 @@ def keyword_search(tenant_id: int, query: str, top_k: int = 5) -> list[SearchRes
                    MATCH(dc.content) AGAINST (%s IN NATURAL LANGUAGE MODE) AS relevance
             FROM document_chunk dc
             JOIN document d ON d.id = dc.document_id
-            WHERE dc.tenant_id = %s AND d.status = 'ready'
+            WHERE dc.tenant_id = %s AND d.status = 'ready' AND d.review_state = 'published'
               AND MATCH(dc.content) AGAINST (%s IN NATURAL LANGUAGE MODE) > 0
             ORDER BY relevance DESC
             LIMIT %s

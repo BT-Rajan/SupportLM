@@ -79,8 +79,8 @@ def test_vector_store_search_only_returns_own_tenant_chunks():
         cur = conn.cursor()
         for tenant_id, label in [(tenant_a, "A"), (tenant_b, "B")]:
             cur.execute(
-                "INSERT INTO document (tenant_id, title, filename, raw_markdown, status) "
-                "VALUES (%s, %s, %s, %s, 'ready')",
+                "INSERT INTO document (tenant_id, title, filename, raw_markdown, status, review_state) "
+                "VALUES (%s, %s, %s, %s, 'ready', 'published')",
                 (tenant_id, f"Doc {label}", f"{label.lower()}.md", "# x"),
             )
             doc_id = cur.lastrowid
@@ -101,6 +101,8 @@ def test_vector_store_search_only_returns_own_tenant_chunks():
     results_a = store.search(tenant_a, [1.0, 0.0, 0.0], top_k=5)
     results_b = store.search(tenant_b, [1.0, 0.0, 0.0], top_k=5)
 
+    assert results_a, "expected at least one own-tenant result for tenant A"
+    assert results_b, "expected at least one own-tenant result for tenant B"
     assert all("tenant A" in r.content for r in results_a)
     assert all("tenant B" in r.content for r in results_b)
     assert not any("tenant B" in r.content for r in results_a)

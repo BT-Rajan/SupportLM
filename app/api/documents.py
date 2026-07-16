@@ -17,7 +17,15 @@ class DocumentOut(BaseModel):
     id: int
     title: str
     status: str
+    review_state: str
     error_message: str | None = None
+
+
+class ReviewStateIn(BaseModel):
+    state: str
+
+
+_REVIEW_STATES = {"draft", "review", "published"}
 
 
 @router.post("/upload", response_model=DocumentOut)
@@ -45,15 +53,15 @@ async def upload_document(
                 cur.close()
                 raise HTTPException(status_code=400, detail="Invalid category")
         cur.execute(
-            """INSERT INTO document (tenant_id, category_id, title, filename, raw_markdown, status)
-               VALUES (%s, %s, %s, %s, %s, 'pending')""",
+            """INSERT INTO document (tenant_id, category_id, title, filename, raw_markdown, status, review_state)
+               VALUES (%s, %s, %s, %s, %s, 'pending', 'draft')""",
             (tenant_id, category_id, title, file.filename, raw),
         )
         document_id = cur.lastrowid
         cur.close()
 
     background_tasks.add_task(ingest_document, document_id)
-    return DocumentOut(id=document_id, title=title, status="pending")
+    return DocumentOut(id=document_id, title=title, status="pending", review_state="draft")
 
 
 @router.get("", response_model=list[DocumentOut])
@@ -61,7 +69,7 @@ def list_documents(tenant_id: int = Depends(require_role("viewer"))):
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT id, title, status, error_message FROM document WHERE tenant_id = %s ORDER BY uploaded_at DESC",
+            "SELECT id, title, status, review_state, error_message FROM document WHERE tenant_id = %s ORDER BY uploaded_at DESC",
             (tenant_id,),
         )
         rows = cur.fetchall()
@@ -87,13 +95,50 @@ def reindex_document(document_id: int, background_tasks: BackgroundTasks, tenant
             (document_id, tenant_id),
         )
         cur.execute(
-            "SELECT id, title, status, error_message FROM document WHERE id = %s AND tenant_id = %s",
+            "SELECT id, title, status, review_state, error_message FROM document WHERE id = %s AND tenant_id = %s",
             (document_id, tenant_id),
         )
         row = cur.fetchone()
         cur.close()
 
     background_tasks.add_task(ingest_document, document_id)
+    return DocumentOut(**row)
+
+
+@router.post("/{document_id}/review-state", response_model=DocumentOut)
+def set_review_state(document_id: int, req: ReviewStateIn, tenant_id: int = Depends(require_role("editor"))):
+    """WBS 1.2. No restriction on which direction a transition goes
+    (draft->review->published, or straight back to draft to unpublish,
+    etc.) beyond the three legal values — the owner's explicit
+    decision was that editor+ can move a document through every state,
+    not just forward, so there's no separate reviewer/publisher role
+    gate to enforce here."""
+    if req.state not in _REVIEW_STATES:
+        raise HTTPException(status_code=400, detail=f"Unknown review state '{req.state}'; must be one of {sorted(_REVIEW_STATES)}")
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        # Confirm the document exists for this tenant BEFORE updating —
+        # can't rely on the UPDATE's rowcount for this (pymysql reports
+        # rows *changed*, not rows *matched*, since db/pool.py doesn't
+        # set CLIENT_FOUND_ROWS; setting review_state to the value it
+        # already has would update 0 rows and incorrectly 404 a
+        # document that's actually right there).
+        cur.execute("SELECT id FROM document WHERE id = %s AND tenant_id = %s", (document_id, tenant_id))
+        if cur.fetchone() is None:
+            cur.close()
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        cur.execute(
+            "UPDATE document SET review_state = %s WHERE id = %s AND tenant_id = %s",
+            (req.state, document_id, tenant_id),
+        )
+        cur.execute(
+            "SELECT id, title, status, review_state, error_message FROM document WHERE id = %s AND tenant_id = %s",
+            (document_id, tenant_id),
+        )
+        row = cur.fetchone()
+        cur.close()
     return DocumentOut(**row)
 
 

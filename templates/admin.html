@@ -2,51 +2,68 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>KnowledgeLM Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin · {{ tenant_slug }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/admin.css">
 </head>
 <body>
 
-  <div id="login-view">
-    <h2>Admin login</h2>
-    <form id="login-form">
-      <input id="login-email" type="email" placeholder="Email" required>
-      <input id="login-password" type="password" placeholder="Password" required>
-      <button type="submit">Log in</button>
-    </form>
-    <p id="login-error" class="error"></p>
+  <div id="login-view" class="auth-shell">
+    <div class="auth-card">
+      <p class="auth-title">Admin sign in</p>
+      <form id="login-form" class="auth-form">
+        <input id="login-email" class="field-input" type="email" placeholder="Email" autocomplete="username" required>
+        <input id="login-password" class="field-input" type="password" placeholder="Password" autocomplete="current-password" required>
+        <button type="submit" class="btn-primary">Log in</button>
+      </form>
+      <p id="login-error" class="field-error" hidden></p>
+    </div>
   </div>
 
-  <div id="dashboard-view" style="display:none">
-    <div class="top-bar">
-      <h2>KnowledgeLM Admin</h2>
-      <button id="logout-btn">Log out</button>
-    </div>
+  <div id="dashboard-view" class="dashboard" hidden>
+    <header class="dash-header">
+      <p class="dash-title">Admin</p>
+      <button type="button" id="logout-btn" class="btn-ghost">Log out</button>
+    </header>
 
-    <section>
-      <h3>Categories</h3>
-      <form id="category-form">
-        <input id="category-name" type="text" placeholder="New category name" required>
-        <button type="submit">Add</button>
+    <section class="panel">
+      <h2 class="panel-title">Categories</h2>
+      <form id="category-form" class="inline-form">
+        <input id="category-name" class="field-input" type="text" placeholder="New category name" required>
+        <button type="submit" class="btn-primary">Add</button>
       </form>
-      <ul id="category-list"></ul>
+      <ul id="category-list" class="plain-list"></ul>
+      <p id="category-empty" class="empty-state" hidden>
+        <span class="empty-title">No categories yet</span>
+        <span class="empty-body">Add one above to start organizing documents.</span>
+      </p>
     </section>
 
-    <section>
-      <h3>Upload document</h3>
-      <form id="upload-form">
-        <input id="upload-file" type="file" accept=".md,.markdown" required>
-        <select id="upload-category"></select>
-        <button type="submit">Upload</button>
+    <section class="panel">
+      <h2 class="panel-title">Upload document</h2>
+      <form id="upload-form" class="inline-form">
+        <input id="upload-file" class="field-input" type="file" accept=".md,.markdown" required>
+        <select id="upload-category" class="field-input"></select>
+        <button type="submit" class="btn-primary">Upload</button>
       </form>
+      <p class="hint">New uploads start as drafts — publish them below once they're ready to answer questions.</p>
     </section>
 
-    <section>
-      <h3>Documents</h3>
-      <table id="document-table">
-        <thead><tr><th>Title</th><th>Status</th><th></th></tr></thead>
+    <section class="panel">
+      <h2 class="panel-title">Documents</h2>
+      <table id="document-table" class="data-table">
+        <thead>
+          <tr><th>Title</th><th>Status</th><th>Review state</th><th></th></tr>
+        </thead>
         <tbody></tbody>
       </table>
+      <p id="document-empty" class="empty-state" hidden>
+        <span class="empty-title">No documents yet</span>
+        <span class="empty-body">Upload a Markdown file above to build your knowledge base.</span>
+      </p>
     </section>
   </div>
 
