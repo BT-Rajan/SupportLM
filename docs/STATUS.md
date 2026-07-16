@@ -5,20 +5,13 @@
 
 ## Current phase
 
-**Cross-session reconciliation (see the last Round log entry for the
-full story).** Two sessions worked on this repo concurrently without
-knowing about each other. Ground truth, reconciled: **Phase 3 is
-genuinely NOT complete** — only 1.0 (Content Review Workflow) is done;
-2.0/3.0 remain unbuilt. The "Phase 3 complete per owner confirmation"
-note that used to be here was a cross-session mixup — a different
-session was told Phase 3 was done outside this repo, which was
-inaccurate; it was actively being built here, just not yet pushed.
-**Phase 5 (Conversation Experience) IS genuinely complete** — 1.0
-Multi-turn Memory (Round 26), 2.0 Multi-language Support (Round 27),
-and 3.0 Thumbs Up/Down Feedback (Round 28) all done, all on top of a
-Phase 4 that's also genuinely complete. Next: finish Phase 3 (2.0/3.0)
-before starting Phase 6, since Phase 3 was never actually done despite
-what this file said for a while.
+**Phase 3 is intentionally scoped to 1.0 only — explicit owner
+decision, not an oversight.** 2.0 (Website Content Sync) and 3.0
+(Duplicate/Conflict Detection) will not be built; treat Phase 3 as
+done. Phase 4 and Phase 5 are both genuinely complete (see the Round
+29 cross-session merge note below for how Phase 5's completeness was
+confirmed against a concurrent session's work). **Starting Phase 6
+(Escalation to Service Request) planning next.**
 
 ## Phase progress
 
@@ -26,7 +19,7 @@ what this file said for a while.
 |-------|-----------------------------------------|-------------|
 | 1     | Multi-tenancy & Org Foundation           | Complete (6.0 skipped by owner decision) |
 | 2     | Access Control & Anonymous-Chat Email    | Complete    |
-| 3     | Knowledge Base Management                | In progress — 1.0 done, 2.0/3.0 not started |
+| 3     | Knowledge Base Management                | Complete — intentionally scoped to 1.0 only, by owner decision (2.0/3.0 will not be built) |
 | 4     | Retrieval & Answer Quality                | Complete |
 | 5     | Conversation Experience                   | Complete |
 | 6     | Escalation to Service Request (SR)        | Not started |
@@ -1362,7 +1355,26 @@ what this file said for a while.
   decision (see "Next action" below), not another session quietly
   choosing for them.
 
+### Round 30 — owner decision: Phase 3 intentionally stops at 1.0
+- Presented the Round 29 reconciliation finding directly to the owner
+  (Phase 3 was really only 1.0 done, not complete as this file had
+  said) rather than assuming either "finish it" or "leave it" on this
+  session's own authority.
+- **Owner's explicit call: leave Phase 3 at 1.0, move on to Phase 6.**
+  2.0 (Website Content Sync) and 3.0 (Duplicate/Conflict Detection)
+  from `docs/Phase III WBS.md` will not be built. This is a scope
+  decision, not an abandoned TODO — recorded as such so a future
+  session doesn't mistake it for unfinished work needing a resume.
+- Phase progress table and current-phase header updated to reflect
+  this as **Complete (1.0 only, by owner decision)** rather than "in
+  progress" or "not started."
+
 ## Open decisions / things to confirm during Phase 3
+
+**Moot as of Round 30** — the owner decided Phase 3 stops at 1.0, so
+2.0/3.0 will never be built and these questions about them don't need
+answers. Left in place, not deleted, as a record of what would have
+needed deciding if this scope is ever revisited.
 
 - **3.0 cadence**: manual-trigger was assumed, not confirmed (see
   above) — worth a direct confirmation once 1.0/2.0 are built and the
@@ -1380,15 +1392,10 @@ what this file said for a while.
 
 ## Next action
 
-Phase 5 is genuinely complete (see reconciliation note above), and so
-is Phase 4. Phase 3's 2.0 (Website Content Sync) and 3.0
-(Duplicate/Conflict Detection) are **still genuinely unbuilt** — this
-was never picked up by either concurrent session: the other session
-paused for reconciliation right after 1.0, and this session was told
-(inaccurately) that Phase 3 was already done outside the repo and
-proceeded straight to Phase 4. `docs/Phase III WBS.md` still has the
-full scope and the owner's kickoff decisions for both remaining
-sections. **This needs an explicit owner call** — circle back and
-finish Phase 3's 2.0/3.0 now, or treat Phase 3 as intentionally landing
-at "1.0 only" and move on to Phase 6 — rather than a third session
-silently deciding for them again.
+Phase 3 is intentionally done at 1.0 (owner decision, Round 30). Phases
+4 and 5 are complete. Start Phase 6 (Escalation to Service Request)
+planning: write `docs/Phase VI WBS.md` breaking down SR generation
+(unique SR number, full chat history attached) and dual email
+notification (company support inbox + end user) per
+`docs/MASTER_PROMPT.md`'s Phase 6 scope — same kickoff-questions
+discipline used for every phase so far.
