@@ -5,10 +5,11 @@
 
 ## Current phase
 
-**Phase 6 — Round 32 complete. 1.1/1.2 escalation detection done; 1.3
-deferred to Round 34 alongside 3.4's endpoint (nothing to submit to
-yet).** 2.0 SR Generation is next. Phase 3 is intentionally done at
-1.0 (owner decision, Round 30). Phases 4 and 5 are complete.
+**Phase 6 — Round 33 complete. 2.0 SR Generation done (2.1-2.3,
+including a real schema-uniqueness bug caught and fixed by testing
+before it was pushed). 3.0 Dual Email Notification (+ deferred 1.3) is
+next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
+30). Phases 4 and 5 are complete.
 
 ## Phase progress
 
@@ -1426,6 +1427,43 @@ yet).** 2.0 SR Generation is next. Phase 3 is intentionally done at
   anywhere in Phases 1-5.
 - Next: 2.0 SR Generation.
 
+### Round 33 — completed 2.0 SR Generation (2.1-2.3)
+- **2.1 — schema**: `migrations/020_service_requests.sql` adds
+  `sr_sequence` (per-tenant, per-day counter) and `service_request`
+  (`message_id` UNIQUE — one escalation per triggering message, no
+  re-submission, same "no re-voting" shape as Phase 5's feedback).
+  **Caught and fixed a real bug via my own test before pushing**: the
+  first draft made `sr_number` globally `UNIQUE`, but two different
+  tenants are *expected* to produce the identical human-readable
+  number on the same day (each has its own sequence — same as two
+  companies both having invoice #1001). A global `UNIQUE` would have
+  incorrectly rejected the second tenant's insert; fixed to a
+  composite `UNIQUE (tenant_id, sr_number)`, which is what the format's
+  actual guarantee (collision-free *within* a tenant/day) requires.
+- **2.2 — SR number generation**: new `app/services/escalation.py`,
+  `generate_sr_number()` — `INSERT ... ON DUPLICATE KEY UPDATE
+  next_seq = next_seq + 1` then a read-back, atomic under InnoDB row
+  locking (safe under concurrent escalations for the same tenant/day,
+  unlike a `COUNT(*) + 1` against `service_request`, which would
+  race).
+- **2.3 — chat history attachment**: no new code — confirmed
+  `app/services/transcript_email.py`'s existing `build_transcript()`
+  is reusable as-is for 3.0's email bodies once built, since messages
+  are append-only and a live rebuild from `conversation_id` is
+  equivalent to a stored snapshot.
+- `tests/test_escalation_service.py` (4 tests): SR number format,
+  increments correctly across 3 calls for one tenant, two tenants'
+  sequences are independent (both starting at `0001` the same day is
+  correct, not a bug), and — the test that actually caught the schema
+  bug above — two tenants' identical-looking SR numbers both insert
+  successfully into `service_request` without violating the (now
+  correctly composite) uniqueness constraint.
+- Full suite run 3 consecutive times against the same DB with no
+  cleanup between runs: **129/129 passing every time**, no regressions
+  anywhere in Phases 1-5 or Phase 6's 1.0.
+- Next: 3.0 Dual Email Notification (plus 1.3's deferred widget UI,
+  built together with 3.4's endpoint).
+
 ## Open decisions / things to confirm during Phase 3
 
 **Moot as of Round 30** — the owner decided Phase 3 stops at 1.0, so
@@ -1449,6 +1487,8 @@ needed deciding if this scope is ever revisited.
 
 ## Next action
 
-Start Phase 6, Round 33: 2.1 — `migrations/020_service_requests.sql`
-(`service_request` + `sr_sequence`), then 2.2 —
-`generate_sr_number()` in a new `app/services/escalation.py`.
+Start Phase 6, Round 34: 3.1 —
+`migrations/021_tenant_support_email.sql` (`tenant_support_config`),
+then 3.2-3.4 — the escalation-completion flow, admin endpoint, and
+`POST /api/chat/{message_id}/escalate`, plus 1.3's widget UI (built
+together since one needs the other to be testable).
