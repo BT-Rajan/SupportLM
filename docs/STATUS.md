@@ -5,9 +5,10 @@
 
 ## Current phase
 
-**Phase 8 (final phase) — Round 41 complete. 1.0 Audit Log done
-(1.1-1.4).** 2.0 Rate Limiting & Abuse Protection is next. Phase 3 is
-fully complete (1.0/2.0/3.0). Phases 4, 5, 6, and 7 are complete.
+**Phase 8 (final phase) — Round 42 complete. 1.0 Audit Log (Round 41)
+and 2.0 Rate Limiting & Abuse Protection done.** 3.0 Agent/Bot
+Configuration UI is next. Phase 3 is fully complete (1.0/2.0/3.0).
+Phases 4, 5, 6, and 7 are complete.
 
 ## Phase progress
 
@@ -1888,6 +1889,52 @@ fully complete (1.0/2.0/3.0). Phases 4, 5, 6, and 7 are complete.
 - **1.0 Audit Log is done (1.1-1.4).** Next: 2.0 Rate Limiting & Abuse
   Protection.
 
+### Round 42 — completed 2.0 Rate Limiting & Abuse Protection (2.1-2.4)
+- **2.1 — schema**: `migrations/025_rate_limit_bucket.sql` — fixed
+  1-minute windows, composite PK on `(scope_type, scope_key,
+  window_start)`, same atomic `INSERT ... ON DUPLICATE KEY UPDATE`
+  pattern as Phase 6's `sr_sequence`.
+- **2.2 — limits**: 20 requests/minute per IP, 100/minute per tenant
+  (aggregate) — defaults, not yet admin-configurable, flagged as a
+  reasonable follow-up rather than built this phase.
+- **2.3 — IP resolution**: prefers `X-Forwarded-For`'s first entry if
+  present, else `request.client.host`. **Assumed, not confirmed**,
+  same as Phase III's cadence assumption — whether this app actually
+  sits behind a reverse proxy in production determines whether that
+  header can be trusted at all.
+- **2.4 — enforcement**: new `app/core/rate_limit.py`,
+  `enforce_rate_limit()` — checks and increments both buckets, raises
+  `429` if either is exceeded. Wired into `POST /api/chat` only (the
+  master prompt's literal scope), enforced before anything else in
+  `post_chat` runs, so a rejected request doesn't still cost an
+  embedding call or provider round-trip.
+- **A real cross-test risk found and resolved before it caused
+  flakiness**: every existing test that calls the real `/api/chat`
+  endpoint via `TestClient` shares one fixed test-client IP — without
+  a fix, running the full suite (and especially this project's own "3
+  consecutive runs" validation habit) would accumulate real counts
+  against one shared real-world-minute bucket and start tripping
+  429s purely from test volume, unrelated to whatever each test was
+  actually checking. Fixed with a new `tests/conftest.py`: an autouse
+  fixture bypasses rate limiting for every test by default; the two
+  tests that actually need to exercise real enforcement opt back in
+  via `@pytest.mark.real_rate_limit`.
+- `tests/test_rate_limit.py` (8 tests): bucket increment/limit logic
+  (allow-under, reject-over, independent buckets per scope_key, `ip`
+  and `tenant` scopes independent even with an identical key string),
+  `X-Forwarded-For` preference and fallback, and two real
+  `@pytest.mark.real_rate_limit` endpoint tests confirming an actual
+  429 after exceeding the IP limit and, separately, the tenant limit
+  (with the other scope's limit raised out of the way to isolate
+  which one is actually under test).
+- Full suite run 3 consecutive times against the same DB with no
+  cleanup between runs: **202/202 passing every time**, confirming the
+  bypass fixture actually does its job across repeated runs — plus a
+  separate fresh-DB rebuild (full `001`→`025` chain) also at 202/202.
+  No regressions anywhere in Phases 1-7 or Phase 8's 1.0.
+- **2.0 Rate Limiting & Abuse Protection is done (2.1-2.4).** Next: 3.0
+  Agent/Bot Configuration UI.
+
 ## Open decisions / things to confirm during Phase 3
 
 **Phase 3 is fully complete as of Round 38** — both items previously
@@ -1901,6 +1948,7 @@ decision. Nothing left open in this phase.
 
 ## Next action
 
-Start Phase 8, Round 42: 2.1 — `migrations/025_rate_limit_bucket.sql`
-(`rate_limit_bucket`), then 2.4 — `enforce_rate_limit()` in a new
-`app/core/rate_limit.py`, applied only to `POST /api/chat`.
+Start Phase 8, Round 43: 3.1 — `migrations/026_tenant_agent_tone.sql`
+(`tenant_branding.tone`), then 3.2/3.3/3.4 — merge tone into the
+system prompt, `GET`/`POST /api/tenant/agent-config`, and the admin UI
+panel.

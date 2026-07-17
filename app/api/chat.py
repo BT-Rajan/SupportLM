@@ -1,10 +1,11 @@
 import logging
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.core.config import settings
+from app.core.rate_limit import enforce_rate_limit
 from app.core.tenant_scope import resolve_tenant
 from app.core.theme import resolve_theme
 from app.db.pool import get_conn
@@ -37,7 +38,11 @@ class EscalationRequest(BaseModel):
 
 
 @router.post("")
-def post_chat(req: ChatRequest, tenant_id: int = Depends(resolve_tenant)):
+def post_chat(req: ChatRequest, request: Request, tenant_id: int = Depends(resolve_tenant)):
+    # Phase 8 — 2.4: enforced first, before anything else runs — a
+    # rejected request shouldn't still cost an embedding call or a
+    # provider round-trip.
+    enforce_rate_limit(tenant_id, request)
     try:
         agent_name = resolve_theme(tenant_id)["agent_name"]
         result = ask(tenant_id, req.question, req.conversation_id, agent_name=agent_name, language=req.language)
