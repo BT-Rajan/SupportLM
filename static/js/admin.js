@@ -28,6 +28,8 @@
     loginView.hidden = true;
     dashboardView.hidden = false;
     loadCategories();
+    loadSyncSources();
+    loadDuplicateFlags();
     loadDocuments();
   }
 
@@ -160,6 +162,109 @@
       });
     });
   }
+
+  // --- Website sync (WBS 2.0) ---
+  async function loadSyncSources() {
+    const res = await api("/api/documents/sync-sources");
+    const sources = await res.json();
+
+    const list = document.getElementById("sync-source-list");
+    const empty = document.getElementById("sync-source-empty");
+    list.innerHTML = "";
+    empty.hidden = sources.length > 0;
+
+    sources.forEach((s) => {
+      const li = document.createElement("li");
+      const info = document.createElement("span");
+      const synced = s.last_synced_at ? `last synced ${s.last_synced_at}` : "not yet synced";
+      info.textContent = `${s.url} — ${synced}`;
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.textContent = "Remove";
+      delBtn.className = "btn-danger";
+      delBtn.onclick = async () => {
+        await api(`/api/documents/sync-sources/${s.id}`, { method: "DELETE" });
+        loadSyncSources();
+      };
+      li.appendChild(info);
+      li.appendChild(delBtn);
+      list.appendChild(li);
+    });
+  }
+
+  document.getElementById("sync-source-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const input = document.getElementById("sync-source-url");
+    const url = input.value.trim();
+    if (!url) return;
+    const res = await api("/api/documents/sync-sources", { method: "POST", body: JSON.stringify({ url }) });
+    if (res.ok) input.value = "";
+    loadSyncSources();
+  });
+
+  document.getElementById("sync-now-btn").addEventListener("click", async function () {
+    const btn = document.getElementById("sync-now-btn");
+    const statusEl = document.getElementById("sync-now-status");
+    btn.disabled = true;
+    statusEl.hidden = false;
+    statusEl.textContent = "Syncing…";
+
+    const res = await api("/api/documents/sync-sources/sync-now", { method: "POST" });
+    const results = await res.json();
+
+    const ingested = results.filter((r) => r.status === "ingested").length;
+    const unchanged = results.filter((r) => r.status === "unchanged").length;
+    const errors = results.filter((r) => r.status.startsWith("error")).length;
+    statusEl.textContent = `Done — ${ingested} updated, ${unchanged} unchanged, ${errors} failed.`;
+
+    btn.disabled = false;
+    loadSyncSources();
+    loadDocuments();
+  });
+
+  // --- Duplicate content review (WBS 3.0) ---
+  async function loadDuplicateFlags() {
+    const res = await api("/api/documents/duplicate-flags");
+    const flags = await res.json();
+
+    const list = document.getElementById("duplicate-flag-list");
+    const empty = document.getElementById("duplicate-flag-empty");
+    list.innerHTML = "";
+    empty.hidden = flags.length > 0;
+
+    flags.forEach((f) => {
+      const li = document.createElement("li");
+      const info = document.createElement("span");
+      const pct = Math.round(f.similarity * 100);
+      info.textContent = `[${f.source}] "${f.label_a}" (${f.title_a}) \u2194 "${f.label_b}" (${f.title_b}) — ${pct}% similar`;
+      const resolveBtn = document.createElement("button");
+      resolveBtn.type = "button";
+      resolveBtn.textContent = "Dismiss";
+      resolveBtn.className = "btn-ghost";
+      resolveBtn.onclick = async () => {
+        await api(`/api/documents/duplicate-flags/${f.id}/resolve`, { method: "POST" });
+        loadDuplicateFlags();
+      };
+      li.appendChild(info);
+      li.appendChild(resolveBtn);
+      list.appendChild(li);
+    });
+  }
+
+  document.getElementById("scan-duplicates-btn").addEventListener("click", async function () {
+    const btn = document.getElementById("scan-duplicates-btn");
+    const statusEl = document.getElementById("scan-duplicates-status");
+    btn.disabled = true;
+    statusEl.hidden = false;
+    statusEl.textContent = "Scanning…";
+
+    const res = await api("/api/documents/scan-duplicates", { method: "POST" });
+    const newFlags = await res.json();
+    statusEl.textContent = newFlags.length ? `Found ${newFlags.length} new potential duplicate(s).` : "No new duplicates found.";
+
+    btn.disabled = false;
+    loadDuplicateFlags();
+  });
 
   document.getElementById("upload-form").addEventListener("submit", async function (e) {
     e.preventDefault();
