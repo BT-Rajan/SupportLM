@@ -1,0 +1,35 @@
+-- Data-integrity fix: atomic prompt version numbering
+--
+-- `create_version()` (app/services/prompt_versions.py) used to do
+-- `SELECT COALESCE(MAX(version_number), 0) + 1` with a lock-free read,
+-- then INSERT — a real race: two concurrent calls for the same tenant
+-- could both read the same MAX and both attempt the same
+-- version_number, and the second INSERT would fail against
+-- `uq_tenant_version` (017_prompt_versions.sql).
+--
+-- First fix attempted was `SELECT ... FOR UPDATE` on the MAX query —
+-- this does prevent the duplicate-key corruption, but introduces a
+-- worse failure mode for a tenant's very FIRST version: `FOR UPDATE`
+-- against a WHERE clause matching zero existing rows still takes a
+-- gap lock under InnoDB's default REPEATABLE READ, and multiple
+-- threads contending for the same empty gap can deadlock each other
+-- (confirmed directly — a concurrency test with 8 threads reliably
+-- produced `Deadlock found when trying to get lock` on every run).
+--
+-- This migration replaces that approach with the same atomic-counter
+-- pattern `sr_sequence` already established for SR numbers
+-- (migrations/020_service_requests.sql, see escalation.py's
+-- generate_sr_number()) — a plain `UPDATE ... SET x = x + 1 WHERE
+-- id = %s` against a row that ALWAYS already exists (the tenant row
+-- itself) takes a definite row lock, not a gap lock, so concurrent
+-- callers simply serialize on that one row instead of deadlocking.
+--
+-- Starts at 0, not 1: create_version() does increment-then-read (not
+-- sr_sequence's insert-1-or-increment upsert, since there's no
+-- per-day reset here — a plain per-tenant running counter is enough),
+-- so the first call's `+1` needs to land on 1, not 2.
+--
+-- Safe to re-run: ADD COLUMN IF NOT EXISTS is idempotent.
+
+ALTER TABLE tenant
+    ADD COLUMN IF NOT EXISTS next_prompt_version_seq INT NOT NULL DEFAULT 0;

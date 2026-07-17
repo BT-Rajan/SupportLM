@@ -8,7 +8,13 @@
 **Phase 8 (final phase) — Round 42 complete. 1.0 Audit Log (Round 41)
 and 2.0 Rate Limiting & Abuse Protection done.** 3.0 Agent/Bot
 Configuration UI is next. Phase 3 is fully complete (1.0/2.0/3.0).
-Phases 4, 5, 6, and 7 are complete.
+Phases 4, 5, 6, and 7 are complete. A concurrent session's standalone
+data-integrity fix (prompt-version numbering race condition) landed
+alongside this phase's own work — see the note below for a migration-
+number collision at `025` this merge resolved (this session's `025_
+rate_limit_bucket.sql` renumbered to `026` to sit alongside the other
+session's `025_prompt_version_seq.sql`, which was already using that
+number first).
 
 ## Phase progress
 
@@ -1890,7 +1896,7 @@ Phases 4, 5, 6, and 7 are complete.
   Protection.
 
 ### Round 42 — completed 2.0 Rate Limiting & Abuse Protection (2.1-2.4)
-- **2.1 — schema**: `migrations/025_rate_limit_bucket.sql` — fixed
+- **2.1 — schema**: `migrations/026_rate_limit_bucket.sql` — fixed
   1-minute windows, composite PK on `(scope_type, scope_key,
   window_start)`, same atomic `INSERT ... ON DUPLICATE KEY UPDATE`
   pattern as Phase 6's `sr_sequence`.
@@ -1946,9 +1952,117 @@ entry for the specific numbers and the honest limitation (misses
 reworded/synonym duplicates) that comes with the "no embeddings" scope
 decision. Nothing left open in this phase.
 
+### Round 41 — cross-cutting data integrity audit (not tied to a phase)
+- Owner asked for a retrospective classification of every bug caught
+  across the project so far, then asked to fix anything in the "data
+  integrity" category specifically. Both previously-listed items
+  there were already fixed at the time they were found (`sr_number`'s
+  tenant-scoping, migration 012's documented one-time backfill) — so
+  this round is a fresh audit for anything in the same family that
+  hadn't been caught yet, not a re-fix of old news.
+- **Audited every `UNIQUE` constraint across all 23 migrations**
+  (grepped, then checked each one's scoping by hand) looking for
+  another `sr_number`-shaped bug — a constraint that's global when it
+  should be per-tenant. Found none: `tenant.slug` and
+  `admin_user.email` are correctly global (they're identifiers for the
+  tenant/admin record itself, not per-tenant-scoped data);
+  `embedding.chunk_id` and the two `message_id`-keyed feedback/SR
+  constraints are correctly global 1:1 relationships;
+  `category.slug`'s old global-unique constraint (the same bug class,
+  from 001_init.sql) was already found and fixed in Phase 1's Round
+  4 — confirmed directly against the live DB's `SHOW INDEX` output
+  that the old constraint is actually gone, not just superseded by an
+  unused new one sitting alongside it.
+- **Found and fixed a real, previously-uncaught race condition**:
+  `prompt_versions.py`'s `create_version()` used
+  `SELECT MAX(version_number) + 1` with a lock-free read, then
+  INSERT — the exact same anti-pattern `escalation.py`'s own docstring
+  explicitly warns against for SR numbers, just not yet applied there.
+  Two concurrent calls for the same tenant could compute the same
+  `next_version`, and the second INSERT would fail against
+  `uq_tenant_version`. Grepped the rest of the codebase for `MAX(`
+  first — this was the only instance.
+- **Confirmed the bug for real** with a genuine concurrency test — 8
+  real threads, real independent DB connections, a `threading.Barrier`
+  to force them to actually race rather than just run sequentially
+  fast. Reliably reproduced `IntegrityError: Duplicate entry` on every
+  run against the unfixed code.
+- **First fix attempt (`SELECT ... FOR UPDATE`) was wrong** — it does
+  stop the duplicate-key corruption, but re-running the same
+  concurrency test against it produced a *different* failure every
+  time: `Deadlock found when trying to get lock`. `FOR UPDATE` against
+  a WHERE clause matching zero existing rows still takes a gap lock
+  under InnoDB's default REPEATABLE READ, and 8 threads all
+  contending for the same empty gap (a brand-new tenant's first
+  version) deadlock each other. Caught this only because the
+  concurrency test was re-run against the "fixed" code instead of
+  assuming a plausible-sounding fix was correct — a single-threaded
+  sanity check (create two versions in a row, assert `[1, 2]`) would
+  never have caught either the original race or this new failure
+  mode, since neither bug needs true concurrency to exist, but does
+  need true concurrency to *manifest*.
+- **Real fix**: `migrations/025_prompt_version_seq.sql` adds
+  `tenant.next_prompt_version_seq` — the same atomic-counter shape
+  `sr_sequence` already established, adapted for a table (`tenant`)
+  where the row being incremented always already exists, so a plain
+  `UPDATE ... SET x = x + 1 WHERE id = %s` takes a definite row lock,
+  never a gap lock, and concurrent callers serialize cleanly instead
+  of deadlocking. Verified with the same concurrency test, run 20
+  times total across this round: zero failures.
+- **Migration numbering collided twice while pushing this, not
+  once** — worth being honest about both, not just the one caught
+  before it happened. First: built and initially numbered `023`, but
+  the other session's Round 40 had already claimed
+  `023_llm_usage_log.sql` by the time this was ready to push — caught
+  by re-fetching origin before committing, renumbered to `024`.
+  Second: after renumbering to `024` and rebasing onto the other
+  session's *next* push, their own Round 41 (built concurrently,
+  landed first) had claimed `024_audit_log.sql` too — a real, live
+  collision this time, not caught until the rebase itself surfaced
+  two files both named `024_*.sql`. Renumbered again, to
+  `025_prompt_version_seq.sql`, which is also why their own planned
+  Round 42 migration (`rate_limit_bucket`) needed flagging in "Next
+  action" below to move from `025` to `026` before they build it —
+  otherwise this same collision would have just repeated a third time,
+  on their side instead of this one.
+- **Separately, while reading through `test_prompt_versions.py` for
+  this**: found a missing `def test_...():` line had silently merged
+  an entire test — verifying the `created_by_admin_id ON DELETE SET
+  NULL` data-integrity guarantee from `017_prompt_versions.sql` — into
+  the tail of an unrelated test's body. `pytest --collect-only`
+  confirmed only 9 tests were ever actually collected from that file,
+  not 10; the merged logic executed (Python allows an orphaned
+  docstring as a no-op statement) but was never its own discoverable,
+  independently-failing test. Split it out properly, now 10 (11 after
+  the new concurrency test).
+- Rebased cleanly onto the other session's Round 40 (Phase 8
+  planning) — no conflicts in `test_prompt_versions.py` despite both
+  sessions editing it concurrently (they touched the `_StubProvider`
+  mock shape for token-capture in different lines than this round's
+  changes).
+- Validated against a live MariaDB instance, twice — once right after
+  the fix, once again after the second renumbering collision above was
+  resolved: full `001`→`025` migration chain (no gaps, both `024`
+  collisions cleared) applies cleanly on a completely fresh database,
+  `025` confirmed independently re-runnable. Full suite run 3
+  consecutive times against that final state: **196/196 passing**
+  every time — everything from Phase 1 through the other session's
+  Round 41 (Audit Log), no regressions anywhere. The concurrency test
+  specifically run 25 times total across this round: zero failures
+  once the real fix landed.
+- No other data-integrity issues found in this audit. The two
+  originally-listed ones were already fixed; this round found and
+  fixed one more in the same family that hadn't been surfaced before.
+
 ## Next action
 
-Start Phase 8, Round 43: 3.1 — `migrations/026_tenant_agent_tone.sql`
+**Migration renumbering applied**: per the heads-up left here from a
+concurrent session's rebase, `migrations/025_rate_limit_bucket.sql`
+has been renamed to **`026_rate_limit_bucket.sql`** — the other
+session's `025_prompt_version_seq.sql` (a standalone data-integrity
+fix, unrelated to this phase) claimed `025` first.
+
+Start Phase 8, Round 43: 3.1 — `migrations/027_tenant_agent_tone.sql`
 (`tenant_branding.tone`), then 3.2/3.3/3.4 — merge tone into the
 system prompt, `GET`/`POST /api/tenant/agent-config`, and the admin UI
 panel.

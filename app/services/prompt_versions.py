@@ -13,13 +13,26 @@ from app.db.pool import get_conn, get_cursor
 
 
 def create_version(tenant_id: int, prompt_text: str, admin_id: int | None) -> dict:
+    """Version numbers come from `tenant.next_prompt_version_seq`, an
+    atomic per-tenant counter (migrations/025_prompt_version_seq.sql)
+    — NOT a `SELECT MAX(version_number) + 1`, which raced under
+    concurrent calls, and NOT that same query with `FOR UPDATE`
+    either, which fixed the race but introduced real deadlocks on a
+    tenant's first version (a `FOR UPDATE` matching zero rows still
+    takes a gap lock, and concurrent threads contending for the same
+    empty gap can deadlock each other — confirmed directly with a
+    concurrency test before this fix). A plain `UPDATE` against the
+    tenant row — which always already exists — takes a definite row
+    lock instead, so concurrent callers serialize cleanly rather than
+    deadlocking. See the migration for the starts-at-0 reasoning."""
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT COALESCE(MAX(version_number), 0) AS max_v FROM tenant_prompt_version WHERE tenant_id = %s",
+            "UPDATE tenant SET next_prompt_version_seq = next_prompt_version_seq + 1 WHERE id = %s",
             (tenant_id,),
         )
-        next_version = cur.fetchone()["max_v"] + 1
+        cur.execute("SELECT next_prompt_version_seq AS v FROM tenant WHERE id = %s", (tenant_id,))
+        next_version = cur.fetchone()["v"]
         cur.execute(
             """INSERT INTO tenant_prompt_version (tenant_id, version_number, prompt_text, created_by_admin_id)
                VALUES (%s, %s, %s, %s)""",

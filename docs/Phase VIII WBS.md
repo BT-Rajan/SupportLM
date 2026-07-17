@@ -80,7 +80,7 @@ still touching `chat.py`.
 
 ## 2.0 Rate Limiting & Abuse Protection on `/api/chat`
 
-- **2.1 Schema**: `migrations/025_rate_limit_bucket.sql` —
+- **2.1 Schema**: `migrations/026_rate_limit_bucket.sql` —
   `rate_limit_bucket` (`scope_type ENUM('ip','tenant')`, `scope_key
   VARCHAR(100)`, `window_start DATETIME`, `request_count INT`,
   composite PK on all three) — a **fixed 1-minute window**, not a
@@ -107,7 +107,7 @@ still touching `chat.py`.
 
 ## 3.0 Agent/Bot Configuration UI
 
-- **3.1 Schema**: `migrations/026_tenant_agent_tone.sql` adds
+- **3.1 Schema**: `migrations/027_tenant_agent_tone.sql` adds
   `tenant_branding.tone` (`TEXT NULL`) — living alongside
   `agent_name` on the same table rather than a new one, since both are
   the same "voice" concept Phase 1 already anchored there.

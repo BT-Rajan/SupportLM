@@ -44,6 +44,12 @@ def _reset_prompt_versions(tenant_id: int):
         cur = conn.cursor()
         cur.execute("UPDATE tenant SET active_prompt_version_id = NULL WHERE id = %s", (tenant_id,))
         cur.execute("DELETE FROM tenant_prompt_version WHERE tenant_id = %s", (tenant_id,))
+        # Must also reset the counter migrations/025_prompt_version_seq.sql
+        # added — clearing the version rows alone leaves the counter
+        # wherever a prior test run left it, so a rerun against the
+        # same tenant slug would start numbering from, e.g., 9 instead
+        # of 1, even though nothing is actually broken.
+        cur.execute("UPDATE tenant SET next_prompt_version_seq = 0 WHERE id = %s", (tenant_id,))
         cur.close()
 
 
@@ -79,6 +85,49 @@ def test_version_numbers_increment_per_tenant():
     v3 = create_version(tenant_id, "prompt three {context}", admin_id=None)
 
     assert [v1["version_number"], v2["version_number"], v3["version_number"]] == [1, 2, 3]
+
+
+def test_concurrent_create_version_does_not_collide():
+    """Regression test for a real race condition: create_version()
+    used to read MAX(version_number) with a plain (lock-free) SELECT,
+    so two near-simultaneous calls for the same tenant could both
+    compute the same next_version and one would fail against
+    uq_tenant_version. Fixed with SELECT ... FOR UPDATE. This test
+    actually exercises concurrency with real threads and independent
+    DB connections — a single-threaded call to create_version() twice
+    in a row (see test_version_numbers_increment_per_tenant above)
+    can't catch this class of bug, since the two calls are never
+    actually concurrent that way."""
+    import threading
+
+    from app.services.prompt_versions import create_version
+
+    tenant_id = _ensure_tenant("pytest-prompt-concurrent")
+    _reset_prompt_versions(tenant_id)
+
+    n_threads = 8
+    results = []
+    errors = []
+    barrier = threading.Barrier(n_threads)
+
+    def _worker(i):
+        try:
+            barrier.wait()  # line every thread up so they all start create_version() together
+            result = create_version(tenant_id, f"concurrent prompt {i} {{context}}", admin_id=None)
+            results.append(result["version_number"])
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=_worker, args=(i,)) for i in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == [], f"unexpected errors under concurrency: {errors}"
+    assert sorted(results) == list(range(1, n_threads + 1)), (
+        f"expected version numbers 1..{n_threads} with no duplicates/gaps, got {sorted(results)}"
+    )
 
 
 def test_activate_then_get_active_prompt_returns_that_text():
@@ -213,8 +262,24 @@ def test_ask_survives_a_malformed_custom_prompt_without_500ing():
         result = ask(tenant_id, "will this crash?", None)
 
     assert result["answer"] == "ok"
-    """created_by_admin_id is ON DELETE SET NULL — deleting the admin
-    who wrote a version must not delete or invalidate that version."""
+
+
+def test_prompt_version_survives_admin_deletion():
+    """`created_by_admin_id` is ON DELETE SET NULL — deleting the admin
+    who wrote a version must not delete or invalidate that version.
+
+    Bug note: this test used to be silently merged into the tail of
+    test_ask_survives_a_malformed_custom_prompt_without_500ing() above
+    — a missing `def test_...():` line meant this docstring and
+    everything below it ran as trailing statements inside that OTHER
+    test's body instead of as its own test. `pytest --collect-only`
+    confirmed it: only 9 tests were ever actually collected from this
+    file, not 10. The logic itself was executing (Python doesn't error
+    on an orphaned docstring-as-statement), so nothing ever failed
+    loudly — this was silent, not broken-and-caught. Found while
+    auditing this file for something unrelated (a data-integrity race
+    condition in create_version()) and reading through the whole file
+    in the process."""
     from app.core.security import hash_password
     from app.db.pool import get_conn
     from app.services.prompt_versions import activate_version, create_version, get_active_prompt
