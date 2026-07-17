@@ -15,11 +15,16 @@ Enforcement split matches what was confirmed for 5.1/5.2:
   - Chat messages: SOFT warn once message_limit is reached for the
     current calendar month — the widget keeps answering; callers just
     get a warning string back to surface to the tenant admin.
-Seats have a limit in `plan_tier` but nothing in the app creates
-additional `tenant_user` rows yet beyond `create_tenant.py`'s single
-owner link (Phase 2 introduces user invites/management), so there's no
-enforcement point to wire seats into yet. `count_seats` exists so
-Phase 2 has a ready-made check to call rather than reinventing one.
+Seats have a limit in `plan_tier`, but nothing in the app has ever
+created additional `tenant_user` rows beyond `create_tenant.py`'s
+single owner link — no user-invite/seat-management flow was built in
+any phase (Phase 2, which this was originally written anticipating,
+turned out to be RBAC/API-keys/session-hardening/transcript-email
+instead). There is deliberately no `count_seats()`-style helper here
+waiting for a caller that never arrived — if seat enforcement is ever
+actually built, `SELECT COUNT(*) FROM tenant_user WHERE tenant_id = %s`
+is the whole query; add it alongside its real call site then, not
+speculatively ahead of one.
 """
 from fastapi import HTTPException, status as http_status
 
@@ -65,14 +70,6 @@ def count_messages_this_period(tenant_id: int) -> int:
                  AND created_at >= DATE_FORMAT(NOW(), '%%Y-%%m-01')""",
             (tenant_id,),
         )
-        return cur.fetchone()["n"]
-
-
-def count_seats(tenant_id: int) -> int:
-    """Not enforced anywhere yet (see module docstring) — exists for
-    Phase 2's user-invite flow to call."""
-    with get_cursor() as cur:
-        cur.execute("SELECT COUNT(*) AS n FROM tenant_user WHERE tenant_id = %s", (tenant_id,))
         return cur.fetchone()["n"]
 
 

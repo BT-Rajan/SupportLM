@@ -1,20 +1,20 @@
 """Tenant status lifecycle enforcement (WBS 2.2).
 
-There's no per-request tenant resolution yet — that's 3.1's
-request-scoping middleware, which comes after 2.0 in the build order.
-So this module is split into two pieces on purpose:
+Split into two small pieces by design:
 
   - `enforce_active(status)` is a pure function: given an
     already-known status string, decide whether to block the request.
-    No DB access, trivially unit-testable today.
+    No DB access, trivially unit-testable.
   - `get_tenant_status(tenant_id)` does the one-row DB lookup.
 
-3.1's middleware will call `get_tenant_status(tenant_id)` then
-`enforce_active(...)` on every request once it knows how to resolve
-`tenant_id` (from subdomain/path/API key — undecided until 3.1 itself).
-Until then, nothing in the app calls this yet; it exists so 3.1 has a
-tested primitive to build on rather than inventing status-checking logic
-inline in the middleware.
+Called together, inline, everywhere a request needs to check whether
+its tenant is active — `app/core/tenant_scope.py`'s `resolve_tenant()`/
+`resolve_tenant_for_admin()` and `app/core/rbac.py`'s `_resolve_api_key()`
+all do `enforce_active(get_tenant_status(tenant_id))` directly rather
+than through a combining wrapper, since each of those three call sites
+needed a different exception type on the "tenant not found" path
+(404 in some, a differently-shaped auth failure in others) that a
+single generic wrapper couldn't cleanly express for all three at once.
 """
 from fastapi import HTTPException, status as http_status
 
@@ -51,13 +51,3 @@ def enforce_active(status: str) -> None:
         )
     if status not in ("active", "trial"):
         raise ValueError(f"Unknown tenant status: {status!r}")
-
-
-def enforce_tenant_active(tenant_id: int) -> None:
-    """Convenience wrapper: look up and enforce in one call. Raises 404
-    if the tenant doesn't exist, 403 if suspended."""
-    try:
-        tenant_status = get_tenant_status(tenant_id)
-    except TenantNotFound:
-        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Tenant not found")
-    enforce_active(tenant_status)
