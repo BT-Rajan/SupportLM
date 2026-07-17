@@ -1992,13 +1992,16 @@ decision. Nothing left open in this phase.
   sessions editing it concurrently (they touched the `_StubProvider`
   mock shape for token-capture in different lines than this round's
   changes).
-- Validated against a live MariaDB instance: full `001`→`024`
-  migration chain (no gaps) applies cleanly on a fresh database, `024`
-  confirmed independently re-runnable. Full suite run 3 consecutive
-  times: **189/189 passing** every time. The concurrency test
-  specifically run 20 times total across this round (5 before the
-  final full-suite validation, 15 during initial fix iteration): zero
-  failures once the real fix landed.
+- Validated against a live MariaDB instance, twice — once right after
+  the fix, once again after the second renumbering collision above was
+  resolved: full `001`→`025` migration chain (no gaps, both `024`
+  collisions cleared) applies cleanly on a completely fresh database,
+  `025` confirmed independently re-runnable. Full suite run 3
+  consecutive times against that final state: **196/196 passing**
+  every time — everything from Phase 1 through the other session's
+  Round 41 (Audit Log), no regressions anywhere. The concurrency test
+  specifically run 25 times total across this round: zero failures
+  once the real fix landed.
 - No other data-integrity issues found in this audit. The two
   originally-listed ones were already fixed; this round found and
   fixed one more in the same family that hadn't been surfaced before.
