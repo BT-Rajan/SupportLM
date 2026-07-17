@@ -5,14 +5,10 @@
 
 ## Current phase
 
-**Phase 7 (Analytics & Reporting) — COMPLETE.** 0.0 Foundation (Round
-36), then 1.0 Usage Dashboard + 2.0 Unanswered/Low-Confidence Log + 3.0
-CSAT + 4.0 Cost Tracking + 5.0 CSV Export all built together in Round
-37 (they share one aggregation service and one dashboard page by
-design — see the WBS's dependency-order note). Phase 3 is fully
-complete (1.0/2.0/3.0, per the concurrent session's owner
-confirmation). Phases 4, 5, and 6 are complete. Next: Phase 8 (Admin,
-Ops & Webhooks) per `docs/MASTER_PROMPT.md` — the final phase.
+**Phase 8 (final phase) — Round 40 complete (planning).
+`docs/Phase VIII WBS.md` written; 1.1 (audit_log schema) is next.**
+Phase 3 is fully complete (1.0/2.0/3.0). Phases 4, 5, 6, and 7 are
+complete.
 
 ## Phase progress
 
@@ -25,7 +21,7 @@ Ops & Webhooks) per `docs/MASTER_PROMPT.md` — the final phase.
 | 5     | Conversation Experience                   | Complete |
 | 6     | Escalation to Service Request (SR)        | Complete |
 | 7     | Analytics & Reporting                     | Complete |
-| 8     | Admin, Ops & Webhooks                     | Not started |
+| 8     | Admin, Ops & Webhooks                     | In progress (planning) |
 
 ## Round log
 
@@ -1822,6 +1818,32 @@ Ops & Webhooks) per `docs/MASTER_PROMPT.md` — the final phase.
   Tracking, 5.0 CSV Export all complete.** Next: Phase 8 (Admin, Ops &
   Webhooks) — the final phase in `docs/MASTER_PROMPT.md`.
 
+### Round 40 — Phase 8 planning (Admin, Ops & Webhooks — final phase)
+- Wrote `docs/Phase VIII WBS.md`, breaking the master prompt's Phase 8
+  scope into 1.0 Audit Log, 2.0 Rate Limiting & Abuse Protection, 3.0
+  Agent/Bot Configuration UI, 4.0 Health/Status Page, 5.0 Webhooks,
+  6.0 Testing & Validation, 7.0 Documentation & Handoff — same shape
+  as every phase's WBS so far.
+- Confirmed three kickoff decisions: **2.0 rate limiting** is combined
+  per-IP AND per-tenant limits together; **3.0 agent config** is just
+  name + a freeform tone field merged into the system prompt (not an
+  escalation-threshold override or a rules composer); **5.0
+  webhooks** get retries with backoff and delivery logging (not
+  fire-and-forget, not HMAC-signed).
+- **Resolved two things beyond the kickoff questions**: (1) agent name
+  already exists (`tenant_branding.agent_name`, Phase 1) but only via
+  `scripts/set_tenant_branding.py` — this phase adds the missing UI +
+  a new `tone` column, superseding the script for just those two
+  fields. (2) webhook retries need a mechanism, but this project has
+  no job queue (explicitly out of scope in `docs/MASTER_PROMPT.md`) —
+  resolved via FastAPI `BackgroundTasks` (deferred in-process
+  execution after the response, not a durable queue), flagged
+  explicitly that a retry loop is lost on a mid-retry process
+  restart, an accepted limitation of staying within that scope
+  boundary.
+- **Phase 8 planning is done.** Starting 1.1 (`audit_log` schema)
+  next. This is the final phase in `docs/MASTER_PROMPT.md`.
+
 ## Open decisions / things to confirm during Phase 3
 
 **Phase 3 is fully complete as of Round 38** — both items previously
@@ -1835,9 +1857,7 @@ decision. Nothing left open in this phase.
 
 ## Next action
 
-Phase 7 is complete. Start Phase 8 (Admin, Ops & Webhooks) planning:
-write `docs/Phase VIII WBS.md` breaking down the audit log,
-rate limiting/abuse protection on `/api/chat`, agent/bot configuration
-UI, health/status page, and webhooks per `docs/MASTER_PROMPT.md`'s
-Phase 8 scope — same kickoff-questions discipline used for every phase
-so far. This is the final phase.
+Start Phase 8, Round 41: 1.1 — `migrations/024_audit_log.sql`
+(`audit_log`), then 1.2 — `log_audit_event()` in a new
+`app/services/audit.py`, wired into `documents.py`'s upload/delete/
+review-state-change and `auth.py`'s login.
