@@ -23,6 +23,13 @@ of the conversation, oldest first. DeepSeek/OpenAI splice it into the
 `messages` array between the system message and the new user message;
 Anthropic does the same into its own `messages` array, with `system`
 staying a top-level field exactly as it already was.
+
+`chat_completion()` return shape (Phase 7 — 0.1): a dict, `{"content":
+str, "input_tokens": int, "output_tokens": int}` — used to arrive as a
+bare string. Every provider's real response already includes a usage
+block that was being silently discarded; Phase 7's cost tracking needs
+real per-request token counts, not an estimate reconstructed from text
+length after the fact.
 """
 import httpx
 
@@ -31,18 +38,20 @@ from app.db.pool import get_cursor
 
 
 class ChatProvider:
-    def chat_completion(self, system_prompt: str, history: list[dict], user_message: str) -> str:
+    def chat_completion(self, system_prompt: str, history: list[dict], user_message: str) -> dict:
         raise NotImplementedError
 
 
 class DeepSeekProvider(ChatProvider):
     _URL = "https://api.deepseek.com/chat/completions"
+    PROVIDER_NAME = "deepseek"
 
     def __init__(self, api_key: str, model: str):
         self._api_key = api_key
         self._model = model
+        self.model = model  # public alias — Phase 7 0.4 needs this for the usage-log write
 
-    def chat_completion(self, system_prompt: str, history: list[dict], user_message: str) -> str:
+    def chat_completion(self, system_prompt: str, history: list[dict], user_message: str) -> dict:
         resp = httpx.post(
             self._URL,
             headers={"Authorization": f"Bearer {self._api_key}"},
@@ -57,17 +66,25 @@ class DeepSeekProvider(ChatProvider):
             timeout=60.0,
         )
         resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+        body = resp.json()
+        usage = body.get("usage", {})
+        return {
+            "content": body["choices"][0]["message"]["content"],
+            "input_tokens": usage.get("prompt_tokens", 0),
+            "output_tokens": usage.get("completion_tokens", 0),
+        }
 
 
 class OpenAIProvider(ChatProvider):
     _URL = "https://api.openai.com/v1/chat/completions"
+    PROVIDER_NAME = "openai"
 
     def __init__(self, api_key: str, model: str):
         self._api_key = api_key
         self._model = model
+        self.model = model
 
-    def chat_completion(self, system_prompt: str, history: list[dict], user_message: str) -> str:
+    def chat_completion(self, system_prompt: str, history: list[dict], user_message: str) -> dict:
         resp = httpx.post(
             self._URL,
             headers={"Authorization": f"Bearer {self._api_key}"},
@@ -82,18 +99,26 @@ class OpenAIProvider(ChatProvider):
             timeout=60.0,
         )
         resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+        body = resp.json()
+        usage = body.get("usage", {})
+        return {
+            "content": body["choices"][0]["message"]["content"],
+            "input_tokens": usage.get("prompt_tokens", 0),
+            "output_tokens": usage.get("completion_tokens", 0),
+        }
 
 
 class AnthropicProvider(ChatProvider):
     _URL = "https://api.anthropic.com/v1/messages"
     _ANTHROPIC_VERSION = "2023-06-01"
+    PROVIDER_NAME = "anthropic"
 
     def __init__(self, api_key: str, model: str):
         self._api_key = api_key
         self._model = model
+        self.model = model
 
-    def chat_completion(self, system_prompt: str, history: list[dict], user_message: str) -> str:
+    def chat_completion(self, system_prompt: str, history: list[dict], user_message: str) -> dict:
         resp = httpx.post(
             self._URL,
             headers={
@@ -110,11 +135,18 @@ class AnthropicProvider(ChatProvider):
             timeout=60.0,
         )
         resp.raise_for_status()
+        body = resp.json()
         # Anthropic's response content is a list of blocks (text/tool_use/
         # etc.) — join every text block rather than assuming index 0 is
         # the whole answer, in case a future model returns more than one.
-        blocks = resp.json()["content"]
-        return "".join(b["text"] for b in blocks if b.get("type") == "text")
+        blocks = body["content"]
+        content = "".join(b["text"] for b in blocks if b.get("type") == "text")
+        usage = body.get("usage", {})
+        return {
+            "content": content,
+            "input_tokens": usage.get("input_tokens", 0),
+            "output_tokens": usage.get("output_tokens", 0),
+        }
 
 
 def _get_tenant_llm_config(tenant_id: int) -> dict | None:

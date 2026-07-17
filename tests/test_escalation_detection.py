@@ -69,13 +69,17 @@ def test_marker_must_be_at_the_very_end():
 
 
 class _EscalatingStubProvider:
+    PROVIDER_NAME = "stub"
+    model = "stub-model"
     def chat_completion(self, system_prompt, history, user_message):
-        return "I couldn't find anything about that in the documentation.\n\n[ESCALATE]"
+        return {"content": "I couldn't find anything about that in the documentation.\n\n[ESCALATE]", "input_tokens": 10, "output_tokens": 10}
 
 
 class _NormalStubProvider:
+    PROVIDER_NAME = "stub"
+    model = "stub-model"
     def chat_completion(self, system_prompt, history, user_message):
-        return "Here's the answer to your question."
+        return {"content": "Here's the answer to your question.", "input_tokens": 10, "output_tokens": 10}
 
 
 def test_ask_surfaces_needs_escalation_true():
@@ -125,9 +129,12 @@ def test_ask_passes_escalation_instruction_to_provider():
     captured = {}
 
     class _CapturingProvider:
+        PROVIDER_NAME = "stub"
+        model = "stub-model"
+
         def chat_completion(self, system_prompt, history, user_message):
             captured["system_prompt"] = system_prompt
-            return "an answer"
+            return {"content": "an answer", "input_tokens": 10, "output_tokens": 10}
 
     from app.services.chat import _ESCALATION_MARKER, ask
 

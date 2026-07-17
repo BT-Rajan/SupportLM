@@ -114,7 +114,7 @@ def test_citations_never_reference_another_tenants_chunk():
 
     with patch("app.services.chat.embed_text", return_value=[1.0, 0.0, 0.0]), patch(
         "app.services.chat.get_provider",
-        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: "mocked")})(),
+        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: {"content": "mocked", "input_tokens": 10, "output_tokens": 10}), "PROVIDER_NAME": "stub", "model": "stub-model"})(),
     ):
         ask(tenant_a, "question for A", None)
         ask(tenant_b, "question for B", None)

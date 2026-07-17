@@ -40,12 +40,14 @@ def _ensure_tenant(slug: str) -> int:
 
 
 class _StubProvider:
+    PROVIDER_NAME = "stub"
+    model = "stub-model"
     def __init__(self):
         self.calls = []
 
     def chat_completion(self, system_prompt, history, user_message):
         self.calls.append({"system_prompt": system_prompt})
-        return f"stub answer #{len(self.calls)}"
+        return {"content": f"stub answer #{len(self.calls)}", "input_tokens": 10, "output_tokens": 10}
 
 
 def test_language_instruction_known_code():

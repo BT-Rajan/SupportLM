@@ -5,10 +5,11 @@
 
 ## Current phase
 
-**Phase 7 — Round 35 complete (planning). `docs/Phase VII WBS.md`
-written; 0.1 (`ChatProvider` interface change for token capture) is
-next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
-30). Phases 4, 5, and 6 are complete.
+**Phase 7 — Round 36 complete. 0.0 Foundation (Token & Cost Capture)
+done — a real `ChatProvider` interface change touching 10 test files,
+caught and fixed 2 missed stub updates by actually running the full
+suite.** 1.0 Usage Dashboard is next. Phase 3 is intentionally done at
+1.0 (owner decision, Round 30). Phases 4, 5, and 6 are complete.
 
 ## Phase progress
 
@@ -1565,6 +1566,65 @@ next.** Phase 3 is intentionally done at 1.0 (owner decision, Round
 - **Phase 7 planning is done.** Starting 0.1 (the `ChatProvider`
   interface change) next.
 
+### Round 36 — completed 0.0 Foundation: Token & Cost Capture (0.1-0.4)
+- **0.1 — `ChatProvider` interface change**: `chat_completion()` now
+  returns `{"content", "input_tokens", "output_tokens"}` instead of a
+  bare string, across the base class and all three implementations —
+  each parsing its own response shape's real usage block (DeepSeek/
+  OpenAI: `usage.prompt_tokens`/`completion_tokens`; Anthropic:
+  `usage.input_tokens`/`output_tokens`), defaulting to 0 rather than
+  raising if a response is ever missing its usage block entirely.
+  Added a public `PROVIDER_NAME`/`model` attribute to each provider
+  class (previously private/absent) so `ask()` has something to write
+  into the usage log without re-deriving it.
+- **Touched every existing test stub, exactly as flagged in the WBS**:
+  10 test files (`test_cross_tenant_access.py`,
+  `test_escalation_api.py`, `test_escalation_completion.py`,
+  `test_escalation_detection.py`, `test_message_feedback.py`,
+  `test_multilanguage.py`, `test_multiturn_memory.py`,
+  `test_prompt_versions.py`, `test_query_isolation.py`,
+  `test_usage_limits.py`) — every stub provider (lambda-based and
+  class-based) updated to return the new dict shape AND to carry
+  `PROVIDER_NAME`/`model`, since `ask()`'s new usage-log write reads
+  those off whatever `get_provider()` returns, real or mocked. Missed
+  two on the first pass (`test_prompt_versions.py`'s two nested
+  `_StubProvider` classes, `test_escalation_detection.py`'s
+  `_CapturingProvider`) — caught by actually running the full suite
+  rather than assuming the sweep was complete, exactly the kind of
+  gap a mechanical-but-broad change risks.
+- **0.2 — pricing table**: new `app/core/llm_pricing.py` —
+  `PRICING` keyed by provider/model, `estimate_cost()` falling back to
+  `$0` with a logged warning (not a crash) for any unrecognized
+  provider/model. Flagged prominently, in the module docstring itself
+  and not just this log: these figures are this session's best
+  knowledge, not independently verified against live pricing pages,
+  and will need periodic verification/updates.
+- **0.3 — schema**: `migrations/023_llm_usage_log.sql` — one row per
+  assistant message (`message_id` UNIQUE, same shape as feedback/
+  escalation/SR's one-per-message tables). `estimated_cost_usd` is
+  `DECIMAL(10,6)`, not `FLOAT` — deliberate, since dashboard totals sum
+  many rows and floating-point summation error compounds.
+- **0.4 — wired into `ask()`**: the usage-log insert happens right
+  after the citation writes, using the actual token counts the
+  provider returned and `estimate_cost()`'s result.
+- `tests/test_llm_provider_usage.py` (5 tests, no DB needed — pure
+  parsing logic with mocked `httpx.post`): each provider correctly
+  extracts content/tokens from its own realistic response shape,
+  Anthropic joins multiple text blocks correctly, a missing usage
+  block degrades to 0 tokens rather than raising.
+  `tests/test_llm_usage_capture.py` (4 tests, exercised through real
+  `ask()` calls): usage log persists with correct tenant/provider/
+  model/tokens, the estimated cost calculation is arithmetically
+  correct against the actual pricing table, an unrecognized model
+  records `$0` cost without crashing while still recording accurate
+  token counts, and two separate messages each get their own usage-log
+  row rather than sharing one.
+- Full suite run 3 consecutive times against the same DB with no
+  cleanup between runs: **153/153 passing every time**, no regressions
+  anywhere in Phases 1-6.
+- **0.0 Foundation is done.** Next: 1.0 Usage Dashboard (data +
+  real admin-console page).
+
 ## Open decisions / things to confirm during Phase 3
 
 **Moot as of Round 30** — the owner decided Phase 3 stops at 1.0, so
@@ -1588,8 +1648,6 @@ needed deciding if this scope is ever revisited.
 
 ## Next action
 
-Start Phase 7, Round 36: 0.1 — change `ChatProvider.chat_completion()`
-to return `{"content", "input_tokens", "output_tokens"}` across all
-three providers, then update every existing test stub (7 files) to
-match before writing any new code, to isolate the regression risk from
-new feature work.
+Start Phase 7, Round 37: 1.1 — aggregation queries in a new
+`app/services/analytics.py`, then 1.2 — `GET
+/api/tenant/analytics/dashboard?days=30`.

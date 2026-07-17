@@ -61,8 +61,10 @@ def _make_escalating_message(tenant_id: int) -> tuple:
     from app.services.chat import ask
 
     class _EscalatingProvider:
+        PROVIDER_NAME = "stub"
+        model = "stub-model"
         def chat_completion(self, system_prompt, history, user_message):
-            return "I don't have information on that.\n\n[ESCALATE]"
+            return {"content": "I don't have information on that.\n\n[ESCALATE]", "input_tokens": 10, "output_tokens": 10}
 
     with patch("app.services.chat.embed_text", return_value=[0.1, 0.2, 0.3]), patch(
         "app.services.chat.get_provider", return_value=_EscalatingProvider()
@@ -76,8 +78,10 @@ def _make_normal_message(tenant_id: int) -> tuple:
     from app.services.chat import ask
 
     class _NormalProvider:
+        PROVIDER_NAME = "stub"
+        model = "stub-model"
         def chat_completion(self, system_prompt, history, user_message):
-            return "Here's a normal answer."
+            return {"content": "Here's a normal answer.", "input_tokens": 10, "output_tokens": 10}
 
     with patch("app.services.chat.embed_text", return_value=[0.1, 0.2, 0.3]), patch(
         "app.services.chat.get_provider", return_value=_NormalProvider()

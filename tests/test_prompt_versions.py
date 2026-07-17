@@ -152,9 +152,11 @@ def test_ask_uses_tenant_active_prompt_when_configured():
     captured = {}
 
     class _StubProvider:
+        PROVIDER_NAME = "stub"
+        model = "stub-model"
         def chat_completion(self, system_prompt, history, user_message):
             captured["system_prompt"] = system_prompt
-            return "stubbed answer"
+            return {"content": "stubbed answer", "input_tokens": 10, "output_tokens": 10}
 
     with patch("app.services.chat.embed_text", return_value=[0.1, 0.2, 0.3]), patch(
         "app.services.chat.get_provider", return_value=_StubProvider()
@@ -175,9 +177,11 @@ def test_ask_falls_back_to_default_prompt_when_unconfigured():
     captured = {}
 
     class _StubProvider:
+        PROVIDER_NAME = "stub"
+        model = "stub-model"
         def chat_completion(self, system_prompt, history, user_message):
             captured["system_prompt"] = system_prompt
-            return "stubbed answer"
+            return {"content": "stubbed answer", "input_tokens": 10, "output_tokens": 10}
 
     with patch("app.services.chat.embed_text", return_value=[0.1, 0.2, 0.3]), patch(
         "app.services.chat.get_provider", return_value=_StubProvider()
@@ -204,7 +208,7 @@ def test_ask_survives_a_malformed_custom_prompt_without_500ing():
 
     with patch("app.services.chat.embed_text", return_value=[0.1, 0.2, 0.3]), patch(
         "app.services.chat.get_provider",
-        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: "ok")})(),
+        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: {"content": "ok", "input_tokens": 10, "output_tokens": 10}), "PROVIDER_NAME": "stub", "model": "stub-model"})(),
     ):
         result = ask(tenant_id, "will this crash?", None)
 

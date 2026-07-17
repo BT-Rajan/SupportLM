@@ -100,8 +100,10 @@ def _login(client, slug, email):
 
 
 class _EscalatingProvider:
+    PROVIDER_NAME = "stub"
+    model = "stub-model"
     def chat_completion(self, system_prompt, history, user_message):
-        return "I don't know that.\n\n[ESCALATE]"
+        return {"content": "I don't know that.\n\n[ESCALATE]", "input_tokens": 10, "output_tokens": 10}
 
 
 def _ask_and_get_escalating_message(tenant_slug: str) -> tuple:

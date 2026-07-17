@@ -3,6 +3,7 @@ import time
 import uuid
 
 from app.core.llm_client import embed_text
+from app.core.llm_pricing import estimate_cost
 from app.core.llm_providers import get_provider
 from app.db.pool import get_conn
 from app.services.prompt_versions import get_active_prompt
@@ -203,7 +204,10 @@ def ask(
     # module-level chat_completion() call, which was hard-wired to
     # DeepSeek regardless of tenant.
     provider = get_provider(tenant_id)
-    raw_answer = provider.chat_completion(system_prompt, history, question)
+    provider_result = provider.chat_completion(system_prompt, history, question)
+    raw_answer = provider_result["content"]
+    input_tokens = provider_result["input_tokens"]
+    output_tokens = provider_result["output_tokens"]
     answer, needs_escalation = _detect_and_strip_escalation(raw_answer)
     t3 = time.perf_counter()
 
@@ -240,6 +244,18 @@ def ask(
                    VALUES (%s, %s, %s, %s, %s)""",
                 (tenant_id, assistant_message_id, r.chunk_id, rank, r.similarity),
             )
+
+        # Phase 7 — 0.4: token/cost capture, one row per assistant
+        # message. provider.PROVIDER_NAME/model are the public
+        # attributes each ChatProvider subclass exposes for exactly
+        # this purpose (Phase 7 — 0.1).
+        estimated_cost = estimate_cost(provider.PROVIDER_NAME, provider.model, input_tokens, output_tokens)
+        cur.execute(
+            """INSERT INTO llm_usage_log
+                   (tenant_id, message_id, provider, model, input_tokens, output_tokens, estimated_cost_usd)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (tenant_id, assistant_message_id, provider.PROVIDER_NAME, provider.model, input_tokens, output_tokens, estimated_cost),
+        )
         cur.close()
     t4 = time.perf_counter()
 

@@ -210,7 +210,7 @@ def test_ask_rejects_cross_tenant_conversation_id_reuse():
 
     with patch("app.services.chat.embed_text", return_value=[0.1, 0.2, 0.3]), patch(
         "app.services.chat.get_provider",
-        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: "mocked")})(),
+        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: {"content": "mocked", "input_tokens": 10, "output_tokens": 10}), "PROVIDER_NAME": "stub", "model": "stub-model"})(),
     ):
         result_p = ask(tenant_p, "hello from P", None)
         conv_id_p = result_p["conversation_id"]
@@ -238,7 +238,7 @@ def test_ask_rejects_cross_tenant_conversation_id_reuse():
     # Same-tenant continuation must still work.
     with patch("app.services.chat.embed_text", return_value=[0.1, 0.2, 0.3]), patch(
         "app.services.chat.get_provider",
-        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: "mocked follow-up")})(),
+        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: {"content": "mocked follow-up", "input_tokens": 10, "output_tokens": 10}), "PROVIDER_NAME": "stub", "model": "stub-model"})(),
     ):
         result_p2 = ask(tenant_p, "follow-up from P", conv_id_p)
     assert result_p2["conversation_id"] == conv_id_p

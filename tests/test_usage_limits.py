@@ -203,7 +203,7 @@ def test_message_limit_warning_fires_at_limit_but_never_blocks():
 
     with patch("app.services.chat.embed_text", return_value=[0.1, 0.2, 0.3]), patch(
         "app.services.chat.get_provider",
-        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: "a real answer")})(),
+        return_value=type("_P", (), {"chat_completion": staticmethod(lambda *a, **kw: {"content": "a real answer", "input_tokens": 10, "output_tokens": 10}), "PROVIDER_NAME": "stub", "model": "stub-model"})(),
     ):
         result = ask(tenant_id, "one more question", None)
     assert result["answer"] == "a real answer"  # chat still works past the limit

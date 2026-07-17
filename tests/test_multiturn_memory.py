@@ -50,6 +50,8 @@ def _reset_tenant_content(tenant_id: int) -> None:
 
 
 class _StubProvider:
+    PROVIDER_NAME = "stub"
+    model = "stub-model"
     """Captures exactly what ask() passed to chat_completion, for
     assertions on the history/system_prompt/user_message it received."""
 
@@ -58,7 +60,7 @@ class _StubProvider:
 
     def chat_completion(self, system_prompt, history, user_message):
         self.calls.append({"system_prompt": system_prompt, "history": history, "user_message": user_message})
-        return f"stub answer #{len(self.calls)}"
+        return {"content": f"stub answer #{len(self.calls)}", "input_tokens": 10, "output_tokens": 10}
 
 
 def test_first_turn_has_empty_history():

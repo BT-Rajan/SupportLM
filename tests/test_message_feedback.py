@@ -40,8 +40,10 @@ def _ensure_tenant(slug: str) -> int:
 
 
 class _StubProvider:
+    PROVIDER_NAME = "stub"
+    model = "stub-model"
     def chat_completion(self, system_prompt, history, user_message):
-        return "stub answer"
+        return {"content": "stub answer", "input_tokens": 10, "output_tokens": 10}
 
 
 def _client():
