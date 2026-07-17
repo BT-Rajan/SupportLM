@@ -5,10 +5,9 @@
 
 ## Current phase
 
-**Phase 8 (final phase) — Round 40 complete (planning).
-`docs/Phase VIII WBS.md` written; 1.1 (audit_log schema) is next.**
-Phase 3 is fully complete (1.0/2.0/3.0). Phases 4, 5, 6, and 7 are
-complete.
+**Phase 8 (final phase) — Round 41 complete. 1.0 Audit Log done
+(1.1-1.4).** 2.0 Rate Limiting & Abuse Protection is next. Phase 3 is
+fully complete (1.0/2.0/3.0). Phases 4, 5, 6, and 7 are complete.
 
 ## Phase progress
 
@@ -1844,6 +1843,51 @@ complete.
 - **Phase 8 planning is done.** Starting 1.1 (`audit_log` schema)
   next. This is the final phase in `docs/MASTER_PROMPT.md`.
 
+### Round 41 — completed 1.0 Audit Log (1.1-1.4)
+- **1.1 — schema**: `migrations/024_audit_log.sql` — scoped exactly to
+  the master prompt's literal list (uploads/edits/deletes/admin
+  logins), not a general-purpose event log. `admin_id` is nullable
+  with `ON DELETE SET NULL`, same rationale as `api_key.created_by_
+  admin_id`/`tenant_prompt_version.created_by_admin_id` — deleting the
+  admin must not delete the record of what they did.
+- **1.2 — logging helper** (`app/services/audit.py`):
+  `log_audit_event()` (captures `X-Forwarded-For`'s first entry if
+  present, else `request.client.host`) and `get_audit_log()`. Wired
+  into exactly four call sites: `documents.py`'s upload (using
+  `require_role_ctx` instead of `require_role` now, to get `admin_id`
+  alongside `tenant_id`), review-state change ("edit"), delete, and
+  `auth.py`'s successful login (only successful — a failed attempt
+  already 401s before reaching the log call; logging failed attempts
+  too is a reasonable security feature but broader than this phase's
+  literal scope).
+- **1.3 — endpoint**: `GET /api/tenant/audit-log?days=30`
+  (`app/api/audit.py`, `admin`+ — who-did-what is sensitive, same
+  floor as CSV export).
+- **1.4 — admin UI panel**: added directly to `admin.html`/`admin.js`
+  (Phase 7's shift to building real UI in-phase continues). First
+  page-load-triggered `admin`+-only panel this project has — every
+  other auto-loaded panel so far is `viewer`+/`editor`+, so an
+  editor/viewer hitting this panel's 403 needed its own explicit,
+  graceful handling (a quiet "admin access required" message) rather
+  than letting `entries.forEach` throw on an error body that isn't an
+  array.
+- `tests/test_audit_log.py` (7 tests): login/upload/edit/delete each
+  create the correct entry with correct action/entity/detail/admin
+  attribution, the endpoint requires `admin`+, tenant isolation, and
+  an entry survives its admin being deleted. Caught my own
+  non-idempotency bug before it became a flaky-test problem: the
+  admin-deletion test recreated a new admin on every rerun (since
+  `_ensure_admin` looks up by email and the prior run's admin was
+  gone) and accumulated matching rows — same pitfall Round 9 hit with
+  the category-isolation test. Fixed with an explicit cleanup DELETE
+  before reseeding.
+- Full suite run 3 consecutive times against the same DB with no
+  cleanup between runs: **194/194 passing every time**, plus a
+  separate fresh-DB rebuild (full `001`→`024` chain) also at 194/194.
+  No regressions anywhere in Phases 1-7.
+- **1.0 Audit Log is done (1.1-1.4).** Next: 2.0 Rate Limiting & Abuse
+  Protection.
+
 ## Open decisions / things to confirm during Phase 3
 
 **Phase 3 is fully complete as of Round 38** — both items previously
@@ -1857,7 +1901,6 @@ decision. Nothing left open in this phase.
 
 ## Next action
 
-Start Phase 8, Round 41: 1.1 — `migrations/024_audit_log.sql`
-(`audit_log`), then 1.2 — `log_audit_event()` in a new
-`app/services/audit.py`, wired into `documents.py`'s upload/delete/
-review-state-change and `auth.py`'s login.
+Start Phase 8, Round 42: 2.1 — `migrations/025_rate_limit_bucket.sql`
+(`rate_limit_bucket`), then 2.4 — `enforce_rate_limit()` in a new
+`app/core/rate_limit.py`, applied only to `POST /api/chat`.

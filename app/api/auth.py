@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -7,6 +7,7 @@ from app.core.security import create_session_token, verify_password
 from app.core.session import bump_session_version
 from app.core.tenant_scope import resolve_tenant
 from app.db.pool import get_conn
+from app.services.audit import log_audit_event
 
 router = APIRouter(prefix="/api/auth", tags=["auth"], dependencies=[Depends(resolve_tenant)])
 
@@ -26,7 +27,7 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login")
-def login(req: LoginRequest, response: Response):
+def login(req: LoginRequest, response: Response, request: Request, tenant_id: int = Depends(resolve_tenant)):
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -40,6 +41,13 @@ def login(req: LoginRequest, response: Response):
 
     if not row or not verify_password(req.password, row["password_hash"]):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    # Phase 8 — 1.2: only a SUCCESSFUL login is audited — a failed
+    # attempt already 401s above and never reaches here. Logging failed
+    # attempts too would be a reasonable security-monitoring feature,
+    # but it's a different, broader surface than the master prompt's
+    # literal "admin logins" scope, so it's left out of this phase.
+    log_audit_event(tenant_id, row["id"], "login", "admin_user", row["id"], request=request)
 
     token = create_session_token(row["id"], row["session_version"])
     response.set_cookie(

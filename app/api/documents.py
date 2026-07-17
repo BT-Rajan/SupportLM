@@ -1,8 +1,9 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
-from app.core.rbac import require_role
+from app.core.rbac import require_role, require_role_ctx
 from app.db.pool import get_conn
+from app.services.audit import log_audit_event
 from app.services.duplicate_detection import scan_for_duplicates
 from app.services.ingestion import ingest_document
 from app.services.usage import enforce_document_limit
@@ -65,9 +66,11 @@ class DuplicateFlagOut(BaseModel):
 async def upload_document(
     file: UploadFile,
     background_tasks: BackgroundTasks,
+    request: Request,
     category_id: int | None = None,
-    tenant_id: int = Depends(require_role("editor")),
+    ctx: tuple[int, str, int | None] = Depends(require_role_ctx("editor")),
 ):
+    tenant_id, _role, admin_id = ctx
     # Check BEFORE reading/inserting anything — a tenant at its limit
     # shouldn't have the upload partially processed first.
     enforce_document_limit(tenant_id)
@@ -92,6 +95,10 @@ async def upload_document(
         )
         document_id = cur.lastrowid
         cur.close()
+
+    # Phase 8 — 1.2: audit the upload itself, not ingestion's later
+    # success/failure — "an upload happened" is the auditable event.
+    log_audit_event(tenant_id, admin_id, "upload", "document", document_id, detail=title, request=request)
 
     background_tasks.add_task(ingest_document, document_id)
     return DocumentOut(id=document_id, title=title, status="pending", review_state="draft")
@@ -310,13 +317,19 @@ def reindex_document(document_id: int, background_tasks: BackgroundTasks, tenant
 
 
 @router.post("/{document_id}/review-state", response_model=DocumentOut)
-def set_review_state(document_id: int, req: ReviewStateIn, tenant_id: int = Depends(require_role("editor"))):
+def set_review_state(
+    document_id: int,
+    req: ReviewStateIn,
+    request: Request,
+    ctx: tuple[int, str, int | None] = Depends(require_role_ctx("editor")),
+):
     """WBS 1.2. No restriction on which direction a transition goes
     (draft->review->published, or straight back to draft to unpublish,
     etc.) beyond the three legal values — the owner's explicit
     decision was that editor+ can move a document through every state,
     not just forward, so there's no separate reviewer/publisher role
     gate to enforce here."""
+    tenant_id, _role, admin_id = ctx
     if req.state not in _REVIEW_STATES:
         raise HTTPException(status_code=400, detail=f"Unknown review state '{req.state}'; must be one of {sorted(_REVIEW_STATES)}")
 
@@ -343,16 +356,26 @@ def set_review_state(document_id: int, req: ReviewStateIn, tenant_id: int = Depe
         )
         row = cur.fetchone()
         cur.close()
+
+    log_audit_event(
+        tenant_id, admin_id, "edit", "document", document_id, detail=f"review_state -> {req.state}", request=request
+    )
     return DocumentOut(**row)
 
 
 @router.delete("/{document_id}")
-def delete_document(document_id: int, tenant_id: int = Depends(require_role("admin"))):
+def delete_document(document_id: int, request: Request, ctx: tuple[int, str, int | None] = Depends(require_role_ctx("admin"))):
+    tenant_id, _role, admin_id = ctx
     with get_conn() as conn:
         cur = conn.cursor()
+        cur.execute("SELECT title FROM document WHERE id = %s AND tenant_id = %s", (document_id, tenant_id))
+        row = cur.fetchone()
         cur.execute("DELETE FROM document WHERE id = %s AND tenant_id = %s", (document_id, tenant_id))
         deleted = cur.rowcount
         cur.close()
     if deleted == 0:
         raise HTTPException(status_code=404, detail="Document not found")
+    log_audit_event(
+        tenant_id, admin_id, "delete", "document", document_id, detail=row["title"] if row else None, request=request
+    )
     return {"ok": True}

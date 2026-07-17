@@ -32,6 +32,7 @@
     loadDuplicateFlags();
     loadDocuments();
     loadAnalytics();
+    loadAuditLog();
   }
 
   // --- Login ---
@@ -283,6 +284,37 @@
     fileInput.value = "";
     loadDocuments();
   });
+
+  // --- Audit Log (Phase 8 — 1.4) ---
+  async function loadAuditLog() {
+    const list = document.getElementById("audit-log-list");
+    const empty = document.getElementById("audit-log-empty");
+    const res = await api("/api/tenant/audit-log?days=30");
+    if (!res.ok) {
+      // admin+ only — editor/viewer roles see the panel but with a
+      // quiet "not visible at your role" message rather than a
+      // broken/erroring list (this is the first page-load-triggered
+      // admin+-only panel; every other auto-loaded panel so far is
+      // viewer+/editor+, so this is a new case worth handling
+      // explicitly rather than letting entries.forEach throw on an
+      // error body that isn't actually an array).
+      empty.hidden = false;
+      empty.querySelector(".empty-title").textContent = "Admin access required";
+      empty.querySelector(".empty-body").textContent = "Only tenant admins can view the audit log.";
+      return;
+    }
+    const entries = await res.json();
+
+    list.innerHTML = "";
+    empty.hidden = entries.length > 0;
+    entries.forEach((e) => {
+      const li = document.createElement("li");
+      const who = e.admin_email || "(deleted admin)";
+      const detail = e.detail ? ` — ${e.detail}` : "";
+      li.innerHTML = `<span>${e.created_at} · ${who} · ${e.action} ${e.entity_type}${detail}</span>`;
+      list.appendChild(li);
+    });
+  }
 
   // --- Analytics (Phase 7 — 1.3) ---
   // Hand-rolled SVG bar charts — no external charting library. This is
