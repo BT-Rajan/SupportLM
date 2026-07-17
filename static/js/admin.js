@@ -2,6 +2,7 @@
 (function () {
   const loginView = document.getElementById("login-view");
   const dashboardView = document.getElementById("dashboard-view");
+  const sessionLoading = document.getElementById("session-loading");
 
   // Set by the server-rendered page (see templates/admin.html) so this
   // dashboard knows which tenant it's managing (WBS 3.1 Phase 2: path-param
@@ -20,11 +21,13 @@
   }
 
   function showLogin() {
+    sessionLoading.hidden = true;
     loginView.hidden = false;
     dashboardView.hidden = true;
   }
 
   function showDashboard() {
+    sessionLoading.hidden = true;
     loginView.hidden = true;
     dashboardView.hidden = false;
     loadCategories();
