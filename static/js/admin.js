@@ -31,6 +31,7 @@
     loadSyncSources();
     loadDuplicateFlags();
     loadDocuments();
+    loadAnalytics();
   }
 
   // --- Login ---
@@ -282,6 +283,91 @@
     fileInput.value = "";
     loadDocuments();
   });
+
+  // --- Analytics (Phase 7 — 1.3) ---
+  // Hand-rolled SVG bar charts — no external charting library. This is
+  // a self-hosted app; a bar chart is a rect per data point, not worth
+  // a new client-side dependency for.
+  function svgBarChart(values, opts) {
+    const width = opts.width || 560;
+    const height = opts.height || 140;
+    const barGap = 4;
+    const max = Math.max(1, ...values.map((v) => v.value));
+    const barWidth = values.length ? (width - barGap * (values.length - 1)) / values.length : width;
+
+    const bars = values
+      .map((v, i) => {
+        const barHeight = Math.round((v.value / max) * (height - 20));
+        const x = i * (barWidth + barGap);
+        const y = height - barHeight - 16;
+        return (
+          `<rect x="${x}" y="${y}" width="${Math.max(1, barWidth)}" height="${barHeight}" fill="var(--accent, #4f46e5)" rx="2">` +
+          `<title>${v.label}: ${v.value}</title></rect>` +
+          `<text x="${x + barWidth / 2}" y="${height - 4}" font-size="9" text-anchor="middle" fill="var(--muted, #888)">${v.shortLabel || ""}</text>`
+        );
+      })
+      .join("");
+
+    return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}">${bars}</svg>`;
+  }
+
+  function renderStatCard(label, value) {
+    return `<div class="stat-card"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
+  }
+
+  async function loadAnalytics() {
+    const days = document.getElementById("analytics-range").value;
+
+    const [dashRes, flaggedRes] = await Promise.all([
+      api(`/api/tenant/analytics/dashboard?days=${days}`),
+      api(`/api/tenant/analytics/flagged-questions?days=${days}`),
+    ]);
+    const dash = await dashRes.json();
+    const flagged = await flaggedRes.json();
+
+    const csatText = dash.csat.percentage === null ? "—" : `${dash.csat.percentage}%`;
+    document.getElementById("analytics-stats").innerHTML = [
+      renderStatCard("Conversations", dash.conversation_count),
+      renderStatCard("Answers", dash.answer_count),
+      renderStatCard("Escalations", dash.escalation_count),
+      renderStatCard("CSAT", csatText),
+      renderStatCard("Est. cost", `$${Number(dash.cost.total_usd).toFixed(4)}`),
+      renderStatCard("Flagged", dash.flagged_question_count),
+    ].join("");
+
+    const volumeValues = dash.daily_volume.map((d) => ({
+      label: d.date,
+      shortLabel: d.date.slice(5), // MM-DD
+      value: d.count,
+    }));
+    document.getElementById("analytics-volume-chart").innerHTML = volumeValues.length
+      ? svgBarChart(volumeValues, { height: 120 })
+      : '<p class="hint">No answers in this range yet.</p>';
+
+    const costValues = dash.cost.by_provider_model.map((c) => ({
+      label: `${c.provider}/${c.model}`,
+      shortLabel: c.model,
+      value: Number(c.estimated_cost_usd),
+    }));
+    document.getElementById("analytics-cost-chart").innerHTML = costValues.length
+      ? svgBarChart(costValues, { height: 100 })
+      : '<p class="hint">No usage recorded in this range yet.</p>';
+
+    const list = document.getElementById("analytics-flagged-list");
+    const empty = document.getElementById("analytics-flagged-empty");
+    list.innerHTML = "";
+    empty.hidden = flagged.length > 0;
+    flagged.forEach((f) => {
+      const li = document.createElement("li");
+      const snippet = f.content.length > 140 ? f.content.slice(0, 140) + "…" : f.content;
+      li.innerHTML = `<span>[${f.reasons.join(", ")}] ${snippet}</span>`;
+      list.appendChild(li);
+    });
+
+    document.getElementById("analytics-export-btn").href = TENANT_BASE + `/api/tenant/analytics/export.csv?days=${days}`;
+  }
+
+  document.getElementById("analytics-range").addEventListener("change", loadAnalytics);
 
   // Check session on load by attempting to fetch documents.
   api("/api/documents").then(showDashboard).catch(showLogin);

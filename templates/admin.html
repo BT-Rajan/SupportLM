@@ -81,6 +81,34 @@
     </section>
 
     <section class="panel">
+      <h2 class="panel-title">Analytics</h2>
+      <div class="analytics-controls">
+        <label class="hint" for="analytics-range">Range:</label>
+        <select id="analytics-range" class="field-input">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+        <a id="analytics-export-btn" class="btn-ghost" href="#" download>Download CSV</a>
+      </div>
+
+      <div class="stat-grid" id="analytics-stats"></div>
+
+      <h3 class="panel-subtitle">Answers per day</h3>
+      <div id="analytics-volume-chart" class="chart-wrap"></div>
+
+      <h3 class="panel-subtitle">Estimated LLM cost by model</h3>
+      <div id="analytics-cost-chart" class="chart-wrap"></div>
+
+      <h3 class="panel-subtitle">Flagged questions</h3>
+      <ul id="analytics-flagged-list" class="plain-list"></ul>
+      <p id="analytics-flagged-empty" class="empty-state" hidden>
+        <span class="empty-title">Nothing flagged</span>
+        <span class="empty-body">Escalated or low-confidence answers in this range will show up here.</span>
+      </p>
+    </section>
+
+    <section class="panel">
       <h2 class="panel-title">Documents</h2>
       <table id="document-table" class="data-table">
         <thead>

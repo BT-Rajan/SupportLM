@@ -182,6 +182,32 @@ h2 { margin: 0; }
 }
 .plain-list li:last-child { border-bottom: none; }
 
+/* ---- Analytics (Phase 7 — 1.3) ----------------------------------------- */
+.panel-subtitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 18px 0 8px;
+}
+.analytics-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.analytics-controls .field-input { width: auto; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.stat-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+.stat-value { font-family: var(--font-display); font-weight: 700; font-size: 18px; }
+.stat-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+.chart-wrap { margin-bottom: 4px; }
+
 /* ---- Tables (rule 3) --------------------------------------------------- */
 .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .data-table th {

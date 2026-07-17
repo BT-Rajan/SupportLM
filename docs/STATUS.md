@@ -5,17 +5,14 @@
 
 ## Current phase
 
-**Phase 7 — Round 36 complete. 0.0 Foundation (Token & Cost Capture)
-done — a real `ChatProvider` interface change touching 10 test files,
-caught and fixed 2 missed stub updates by actually running the full
-suite.** 1.0 Usage Dashboard is next. Phases 4, 5, and 6 are complete.
-
-**Phase 3 update, superseding Round 30's recorded decision**: Round 30
-(this session) recorded an owner decision that Phase 3 stops at 1.0.
-A concurrent session's owner confirmation supersedes that — **Phase 3
-is now fully complete: 1.0, 2.0, and 3.0 all built** (see Round 38
-below for the full story, including why round numbers needed
-re-sequencing as both sessions kept pushing concurrently).
+**Phase 7 (Analytics & Reporting) — COMPLETE.** 0.0 Foundation (Round
+36), then 1.0 Usage Dashboard + 2.0 Unanswered/Low-Confidence Log + 3.0
+CSAT + 4.0 Cost Tracking + 5.0 CSV Export all built together in Round
+37 (they share one aggregation service and one dashboard page by
+design — see the WBS's dependency-order note). Phase 3 is fully
+complete (1.0/2.0/3.0, per the concurrent session's owner
+confirmation). Phases 4, 5, and 6 are complete. Next: Phase 8 (Admin,
+Ops & Webhooks) per `docs/MASTER_PROMPT.md` — the final phase.
 
 ## Phase progress
 
@@ -27,7 +24,7 @@ re-sequencing as both sessions kept pushing concurrently).
 | 4     | Retrieval & Answer Quality                | Complete |
 | 5     | Conversation Experience                   | Complete |
 | 6     | Escalation to Service Request (SR)        | Complete |
-| 7     | Analytics & Reporting                     | In progress (planning) |
+| 7     | Analytics & Reporting                     | Complete |
 | 8     | Admin, Ops & Webhooks                     | Not started |
 
 ## Round log
@@ -1780,6 +1777,51 @@ re-sequencing as both sessions kept pushing concurrently).
   3.0 all built and validated, superseding Round 30's "stops at 1.0"
   decision in full, not just partially.**
 
+### Round 39 — completed 1.0-5.0: Usage Dashboard, Flagged Questions, CSAT, Cost Tracking, CSV Export — Phase 7 done
+- **1.1/2.2/3.1/4.1 — aggregation service** (`app/services/analytics.py`):
+  tenant- and date-range-scoped queries for conversation/answer/
+  escalation counts, daily answer volume, CSAT (from
+  `message_feedback`, Phase 5), cost breakdown by provider/model (from
+  `llm_usage_log`, Round 36), and flagged questions — reusing
+  `message.needs_escalation` (Phase 6) and `citation.similarity`
+  (Phase 1) rather than introducing new schema for either, per the
+  WBS's explicit "no new schema" call for 2.0/3.0. `LOW_CONFIDENCE_THRESHOLD
+  = 0.3` is a default assumed, not separately confirmed at kickoff —
+  flagged the same way Phase III's cadence assumption was.
+- **1.2/2.3/5.1 — endpoints** (`app/api/analytics.py`): `GET
+  /api/tenant/analytics/dashboard` and `/flagged-questions`
+  (`viewer`+ — read-only reporting, same floor as prompt-version's
+  list), `GET /export.csv` (`admin`+ — raw per-message content is more
+  sensitive than aggregated numbers, so a higher floor).
+- **1.3 — dashboard page**: added directly to the existing
+  `templates/admin.html`/`static/js/admin.js` (an "Analytics" panel,
+  matching how the concurrent session's website-sync/duplicate-
+  detection panels were added to the same file, not a separate
+  template) — stat cards, hand-rolled SVG bar charts (answers/day,
+  cost by model) with zero external charting dependency, a flagged-
+  questions list, a range selector (7/30/90 days), and a "Download
+  CSV" link wired straight to 5.1's endpoint.
+- `tests/test_analytics.py` (9 tests): conversation/answer/escalation
+  counts, CSAT percentage arithmetic (including the no-votes-yet
+  `None` case), cost breakdown and total, escalated questions get
+  tagged with reasons correctly, a confident un-escalated answer with
+  no citations at all is correctly NOT flagged (`NULL < threshold` is
+  `NULL`/false in SQL, not true — worth its own explicit test),
+  dashboard's flagged count matches the full list's length, and
+  tenant isolation. `tests/test_analytics_api.py` (5 tests): auth
+  floor enforcement (no session, viewer, admin), CSV header/content
+  shape, and endpoint-level tenant isolation.
+- Validated: admin page renders cleanly with the new panel present
+  (smoke-tested via TestClient, not just visual inspection), full
+  `001`→`023` migration chain applies cleanly on a freshly rebuilt
+  database, full suite run 3 consecutive times with no cleanup between
+  runs: **187/187 passing every time**, no regressions anywhere in
+  Phases 1-6 or Phase 7's own foundation round.
+- **Phase 7 (Analytics & Reporting) is done: 0.0 Foundation, 1.0 Usage
+  Dashboard, 2.0 Unanswered/Low-Confidence Log, 3.0 CSAT, 4.0 Cost
+  Tracking, 5.0 CSV Export all complete.** Next: Phase 8 (Admin, Ops &
+  Webhooks) — the final phase in `docs/MASTER_PROMPT.md`.
+
 ## Open decisions / things to confirm during Phase 3
 
 **Phase 3 is fully complete as of Round 38** — both items previously
@@ -1793,10 +1835,9 @@ decision. Nothing left open in this phase.
 
 ## Next action
 
-Start Phase 7, Round 37: 1.1 — aggregation queries in a new
-`app/services/analytics.py`, then 1.2 — `GET
-/api/tenant/analytics/dashboard?days=30`.
-
-(Phase 3 is now fully complete per the concurrent session's owner
-confirmation — see the reconciliation note above and Round 38 below.
-Nothing left to hand off from that thread.)
+Phase 7 is complete. Start Phase 8 (Admin, Ops & Webhooks) planning:
+write `docs/Phase VIII WBS.md` breaking down the audit log,
+rate limiting/abuse protection on `/api/chat`, agent/bot configuration
+UI, health/status page, and webhooks per `docs/MASTER_PROMPT.md`'s
+Phase 8 scope — same kickoff-questions discipline used for every phase
+so far. This is the final phase.

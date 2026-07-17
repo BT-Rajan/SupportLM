@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-from app.api import api_keys, auth, categories, chat, documents, llm_config, prompt_versions, support_config
+from app.api import analytics, api_keys, auth, categories, chat, documents, llm_config, prompt_versions, support_config
 from app.core.tenant_scope import resolve_tenant
 from app.core.theme import resolve_theme
 
@@ -33,6 +33,7 @@ app.include_router(api_keys.router, prefix=TENANT_PREFIX)
 app.include_router(llm_config.router, prefix=TENANT_PREFIX)
 app.include_router(prompt_versions.router, prefix=TENANT_PREFIX)
 app.include_router(support_config.router, prefix=TENANT_PREFIX)
+app.include_router(analytics.router, prefix=TENANT_PREFIX)
 
 
 @app.exception_handler(Exception)
