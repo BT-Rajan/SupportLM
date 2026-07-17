@@ -44,7 +44,7 @@ def _reset_prompt_versions(tenant_id: int):
         cur = conn.cursor()
         cur.execute("UPDATE tenant SET active_prompt_version_id = NULL WHERE id = %s", (tenant_id,))
         cur.execute("DELETE FROM tenant_prompt_version WHERE tenant_id = %s", (tenant_id,))
-        # Must also reset the counter migrations/024_prompt_version_seq.sql
+        # Must also reset the counter migrations/025_prompt_version_seq.sql
         # added — clearing the version rows alone leaves the counter
         # wherever a prior test run left it, so a rerun against the
         # same tenant slug would start numbering from, e.g., 9 instead

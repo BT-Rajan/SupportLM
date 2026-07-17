@@ -14,7 +14,7 @@ from app.db.pool import get_conn, get_cursor
 
 def create_version(tenant_id: int, prompt_text: str, admin_id: int | None) -> dict:
     """Version numbers come from `tenant.next_prompt_version_seq`, an
-    atomic per-tenant counter (migrations/024_prompt_version_seq.sql)
+    atomic per-tenant counter (migrations/025_prompt_version_seq.sql)
     — NOT a `SELECT MAX(version_number) + 1`, which raced under
     concurrent calls, and NOT that same query with `FOR UPDATE`
     either, which fixed the race but introduced real deadlocks on a
