@@ -29,6 +29,7 @@
     dashboardView.hidden = false;
     loadCategories();
     loadSyncSources();
+    loadDuplicateFlags();
     loadDocuments();
   }
 
@@ -219,6 +220,50 @@
     btn.disabled = false;
     loadSyncSources();
     loadDocuments();
+  });
+
+  // --- Duplicate content review (WBS 3.0) ---
+  async function loadDuplicateFlags() {
+    const res = await api("/api/documents/duplicate-flags");
+    const flags = await res.json();
+
+    const list = document.getElementById("duplicate-flag-list");
+    const empty = document.getElementById("duplicate-flag-empty");
+    list.innerHTML = "";
+    empty.hidden = flags.length > 0;
+
+    flags.forEach((f) => {
+      const li = document.createElement("li");
+      const info = document.createElement("span");
+      const pct = Math.round(f.similarity * 100);
+      info.textContent = `[${f.source}] "${f.label_a}" (${f.title_a}) \u2194 "${f.label_b}" (${f.title_b}) — ${pct}% similar`;
+      const resolveBtn = document.createElement("button");
+      resolveBtn.type = "button";
+      resolveBtn.textContent = "Dismiss";
+      resolveBtn.className = "btn-ghost";
+      resolveBtn.onclick = async () => {
+        await api(`/api/documents/duplicate-flags/${f.id}/resolve`, { method: "POST" });
+        loadDuplicateFlags();
+      };
+      li.appendChild(info);
+      li.appendChild(resolveBtn);
+      list.appendChild(li);
+    });
+  }
+
+  document.getElementById("scan-duplicates-btn").addEventListener("click", async function () {
+    const btn = document.getElementById("scan-duplicates-btn");
+    const statusEl = document.getElementById("scan-duplicates-status");
+    btn.disabled = true;
+    statusEl.hidden = false;
+    statusEl.textContent = "Scanning…";
+
+    const res = await api("/api/documents/scan-duplicates", { method: "POST" });
+    const newFlags = await res.json();
+    statusEl.textContent = newFlags.length ? `Found ${newFlags.length} new potential duplicate(s).` : "No new duplicates found.";
+
+    btn.disabled = false;
+    loadDuplicateFlags();
   });
 
   document.getElementById("upload-form").addEventListener("submit", async function (e) {

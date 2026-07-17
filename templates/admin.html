@@ -69,6 +69,18 @@
     </section>
 
     <section class="panel">
+      <h2 class="panel-title">Duplicate content review</h2>
+      <button type="button" id="scan-duplicates-btn" class="btn-ghost">Scan for duplicates</button>
+      <p id="scan-duplicates-status" class="hint" hidden></p>
+      <ul id="duplicate-flag-list" class="plain-list"></ul>
+      <p id="duplicate-flag-empty" class="empty-state" hidden>
+        <span class="empty-title">No duplicates flagged</span>
+        <span class="empty-body">Run a scan above to check for near-duplicate titles and headings.</span>
+      </p>
+      <p class="hint">Compares document titles and section headings for near-duplicate text. Scanning is manual only.</p>
+    </section>
+
+    <section class="panel">
       <h2 class="panel-title">Documents</h2>
       <table id="document-table" class="data-table">
         <thead>

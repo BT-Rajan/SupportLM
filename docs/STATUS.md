@@ -12,12 +12,11 @@ for token capture) is next.** Phases 4, 5, and 6 are complete.
 **Phase 3 update, superseding Round 31's recorded decision**: Round
 31 (other session) recorded an owner decision that Phase 3 stops at
 1.0. The owner confirmed directly, in the session that built it, that
-this is superseded — **2.0 (Website Content Sync) is now built**
-(Round 37 below — see Round 22 for the earlier cross-session
-reconciliation, and the note at the top of Round 37 for why round
-numbers occasionally needed re-sequencing as both sessions kept
-pushing concurrently). 3.0 (Duplicate/Conflict Detection) remains the
-only unbuilt piece of Phase 3.
+this is superseded — **Phase 3 is now fully complete: 1.0, 2.0, and
+3.0 all built** (Rounds 21, 37, and 38 — see Round 22 for the earlier
+cross-session reconciliation, and the note at the top of Round 37 for
+why round numbers occasionally needed re-sequencing as both sessions
+kept pushing concurrently).
 
 ## Phase progress
 
@@ -25,7 +24,7 @@ only unbuilt piece of Phase 3.
 |-------|-----------------------------------------|-------------|
 | 1     | Multi-tenancy & Org Foundation           | Complete (6.0 skipped by owner decision) |
 | 2     | Access Control & Anonymous-Chat Email    | Complete    |
-| 3     | Knowledge Base Management                | In progress — 1.0/2.0 done, 3.0 not started (supersedes an earlier "stops at 1.0" decision — see Round 37 below) |
+| 3     | Knowledge Base Management                | Complete — 1.0/2.0/3.0 all done (supersedes an earlier "stops at 1.0" decision — see Round 38 below) |
 | 4     | Retrieval & Answer Quality                | Complete |
 | 5     | Conversation Experience                   | Complete |
 | 6     | Escalation to Service Request (SR)        | Complete |
@@ -1652,37 +1651,95 @@ only unbuilt piece of Phase 3.
 - **2.0 Website Content Sync is done (2.1-2.3).** Phase 3 is now 1.0
   and 2.0 done, 3.0 (Duplicate/Conflict Detection) remains.
 
+### Round 38 — completed 3.0 Duplicate/Conflict Detection (3.1, 3.2, 3.3) — Phase 3 done
+- Owner said "continue" without answering the 3.0-cadence question
+  Round 37 left open — proceeded with the already-documented default
+  assumption (manual-trigger, matching 2.0's "Sync now" shape) rather
+  than stopping to ask again for something already flagged as a
+  reasonable default.
+- **3.1 — schema**: `migrations/014_duplicate_detection.sql` adds
+  `duplicate_flag` — one row per flagged pair, `source` distinguishing
+  a title-vs-title match from a heading-vs-heading match,
+  `label_a`/`label_b` storing the actual compared text so the review
+  UI can show what looked similar, not just which two documents.
+  `document_id_a` always the lower id of the pair (enforced in the
+  service, not the DB) so a pair is never stored twice in flipped
+  order. No DB-level uniqueness constraint on the label columns —
+  would risk the same key-length ceiling `tenant_sync_source.url(255)`
+  was built to avoid — dedup enforced at the application layer
+  instead, in `_flag_exists()`.
+- **3.2 — detection service** (`app/services/duplicate_detection.py`):
+  `difflib.SequenceMatcher` on normalized (lowercased, punctuation-
+  stripped) text, no embeddings, per the owner's "keep it simple"
+  kickoff decision. **Caught a real inaccuracy before it shipped**:
+  the first draft of this module's threshold comment cited invented
+  similarity numbers ("Billing FAQ" vs "Billing Questions" ≈ 0.85,
+  supposedly higher than "Billing FAQ" vs "Shipping FAQ" ≈ 0.75) that
+  were never actually computed. Ran the real numbers before writing
+  them down as documentation — the true values are 0.643 and 0.696
+  respectively, meaning the *unrelated* pair actually scores higher
+  than the *near-duplicate* pair on this specific example, the
+  opposite of what the invented numbers claimed. Recalibrated against
+  ten genuinely-computed title pairs (`docs/STATUS.md`'s own working
+  notes, not repeated here) and picked `0.80` as the real threshold —
+  reliably catches typo/punctuation/singular-plural variants
+  ("Cancellation Policy" vs "Cancelation Policy": 0.973) while
+  correctly excluding unrelated topics ("Shipping Policy" vs "Return
+  Policy": 0.571). Documented an honest limitation directly in the
+  module rather than only in this file: plain character-sequence
+  similarity misses reworded/synonym duplicates a human would catch
+  instantly ("Contact Support" vs "Contact Us": 0.72, below
+  threshold) — the accepted cost of "no embeddings," not an oversight.
+  **Second bug caught by the test suite itself**: `_flag_exists()`
+  originally only checked *unresolved* flags before deciding whether
+  to insert a new one, which meant dismissing a flag and re-running
+  the scan silently recreated the exact same flag — the opposite of
+  the documented "a dismissed pair doesn't come back" behavior. Fixed
+  to check for any existing flag regardless of resolution state.
+- **3.3 — admin endpoints + UI**: `POST /api/documents/scan-duplicates`
+  (`admin`+, manual-trigger only), `GET /api/documents/duplicate-flags`
+  (`viewer`+), `POST .../duplicate-flags/{id}/resolve` (`editor`+ —
+  dismissing a flag is a routine review action, not an admin-only
+  one). Admin UI: a "Duplicate content review" panel in
+  `admin.html`/`admin.js`, built from the same existing tokens/
+  component classes as every other panel — nothing new needed in
+  `admin.css`.
+- `tests/test_duplicate_detection.py` added: near-duplicate titles
+  flagged, distinct titles not flagged, same-document headings not
+  flagged against each other, cross-document near-duplicate headings
+  flagged, rescanning doesn't duplicate an unresolved flag, a resolved
+  flag is genuinely not recreated by a later scan (the regression test
+  for the bug above), role floors on all three endpoints, full
+  scan→list→resolve round trip, and a 404 for an unknown flag.
+- Validated against a live MariaDB instance: full `001`→`022`
+  migration chain (no more gaps — `013` and `014` both now filled)
+  applies cleanly on a fresh database, `014` confirmed independently
+  re-runnable, admin page rendering confirmed via a live `TestClient`
+  request. Full suite run 3 consecutive times: **164/164 passing**
+  every time, no regressions anywhere in Phases 1 through 7's planning.
+- **3.0 Duplicate/Conflict Detection is done (3.1-3.3). Phase 3
+  (Knowledge Base Management) is now fully complete — 1.0, 2.0, and
+  3.0 all built and validated, superseding Round 31's "stops at 1.0"
+  decision in full, not just partially.**
+
 ## Open decisions / things to confirm during Phase 3
 
-**No longer moot** — Round 30's "stops at 1.0" was superseded by the
-owner directly (see the header note above and this session's own
-Round entry above): 2.0 is now built, and 3.0 is the one real open
-item left in Phase 3.
-
-- **3.0 cadence**: manual-trigger was assumed, not confirmed at
-  kickoff — 2.0's "Sync now" pattern is now live in the actual admin
-  UI, so this is a good time for a direct confirmation on whether 3.0
-  should match it.
-- **Duplicate-flag similarity threshold (3.2)**: not yet chosen a
-  concrete number for "near-duplicate enough to flag" — will propose
-  one when 3.2 is actually built, based on a few real title/heading
-  examples rather than guessing a threshold in the abstract now.
+**Phase 3 is fully complete as of Round 38** — both items previously
+open here are resolved: the cadence question was answered by proceeding
+with the already-documented manual-trigger default (owner said
+"continue" without objecting to it), and the similarity threshold
+(0.80) was calibrated against real, computed examples — see Round 38's
+entry for the specific numbers and the honest limitation (misses
+reworded/synonym duplicates) that comes with the "no embeddings" scope
+decision. Nothing left open in this phase.
 
 ## Next action
 
-Two independent threads:
+This session's own scope (Phase 3) is fully complete — nothing left
+to hand off from that thread.
 
-- **The other session** continues with Phase 7, Round 36 (their
-  numbering): 0.1 — change `ChatProvider.chat_completion()` to return
-  `{"content", "input_tokens", "output_tokens"}` across all three
-  providers, then update every existing test stub to match before
-  writing any new code.
-- **This session's own remaining scope** is now down to just Phase
-  3's 3.0 (Duplicate/Conflict Detection) — 2.1's schema
-  (`duplicate_flag`), 3.2's detection service comparing document
-  titles/headings via stdlib `difflib` (kept simple per the owner's
-  kickoff decision), and 3.3's admin endpoints + review-queue UI.
-  `docs/Phase III WBS.md` has the full scope. The 3.0 cadence
-  (manual-trigger, assumed rather than confirmed at kickoff) is worth
-  a real answer before or during that round, now that 2.0's "Sync
-  now" pattern is live in the actual admin UI to compare against.
+**The other session** continues with Phase 7, Round 36 (their
+numbering): 0.1 — change `ChatProvider.chat_completion()` to return
+`{"content", "input_tokens", "output_tokens"}` across all three
+providers, then update every existing test stub to match before
+writing any new code.
