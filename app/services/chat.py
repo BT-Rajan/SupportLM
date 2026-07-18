@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 import uuid
 
@@ -106,6 +107,38 @@ _NO_META_REFERENCE_INSTRUCTION = (
     "see\", or any other reference to the fact that you were given context — "
     "just answer the question."
 )
+
+# Phase 9 — 3.2: the prompt instruction above reduces how often the model
+# does this but doesn't guarantee it — DeepSeek (and any LLM) can still
+# slip the phrasing in, including mid-sentence ("Yes, based on the
+# context, PERENNIA is...") rather than only as a leading clause, so a
+# simple startswith() strip wouldn't have caught the reported case.
+# This regex removes the clause wherever it appears, deterministically,
+# as a backstop that doesn't depend on model compliance at all.
+_META_REFERENCE_RE = re.compile(
+    r"\b(?:based on|according to|as per|given|from)\s+(?:the\s+)?"
+    r"(?:provided\s+|given\s+)?"
+    r"(?:context|information|documentation|knowledge\s*base|articles?|data)\b"
+    r",?\s*",
+    re.IGNORECASE,
+)
+
+
+def _strip_meta_references(answer: str) -> str:
+    """Removes clauses like "based on the context, " / "according to the
+    provided information, " anywhere in the text, then tidies up any
+    resulting double spaces or stray leading punctuation. If the removed
+    clause was at the very start of the answer, the next word's first
+    letter is capitalized (the phrase's own capital would otherwise be
+    lost, e.g. "Based on the context, X" -> "X" needs re-capitalizing
+    only if X wasn't already capitalized on its own, e.g. a plain noun)."""
+    matched_at_start = bool(_META_REFERENCE_RE.match(answer))
+    cleaned = _META_REFERENCE_RE.sub("", answer)
+    cleaned = re.sub(r"^[,:;]\s*", "", cleaned)  # stray leading punctuation
+    cleaned = re.sub(r" {2,}", " ", cleaned).strip()
+    if matched_at_start and cleaned and cleaned[0].islower():
+        cleaned = cleaned[0].upper() + cleaned[1:]
+    return cleaned
 
 
 # Phase 6 — 1.1: the literal marker the model is instructed to append
@@ -280,6 +313,7 @@ def ask(
     input_tokens = provider_result["input_tokens"]
     output_tokens = provider_result["output_tokens"]
     answer, needs_escalation = _detect_and_strip_escalation(raw_answer)
+    answer = _strip_meta_references(answer)
     t3 = time.perf_counter()
 
     with get_conn() as conn:
