@@ -84,7 +84,7 @@ body {
 h2 { margin: 0; }
 
 /* ---- Auth (login) screen ------------------------------------------- */
-.auth-shell {
+.auth-shell:not([hidden]) {
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -197,7 +197,7 @@ h2 { margin: 0; }
 .btn-sm { padding: 6px 11px; font-size: 12px; }
 
 /* ---- Admin shell ------------------------------------------------------ */
-.admin-shell {
+.admin-shell:not([hidden]) {
   display: flex;
   min-height: 100vh;
   background: var(--bg);
@@ -315,6 +315,32 @@ h2 { margin: 0; }
   z-index: 5;
 }
 .admin-topbar-left { display: flex; align-items: center; gap: 14px; }
+.admin-topbar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  width: 220px;
+  padding: 0 12px;
+  color: var(--muted-soft);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--duration-base, 180ms) var(--ease-out);
+}
+.admin-topbar-search:focus-within { border-color: var(--border-strong); color: var(--muted); }
+.admin-topbar-search svg { flex-shrink: 0; }
+.admin-topbar-search .field-input {
+  border: none;
+  background: transparent;
+  padding: 9px 0;
+  width: 100%;
+  box-shadow: none;
+}
+.admin-topbar-search .field-input:focus { outline: none; box-shadow: none; }
+@media (max-width: 720px) {
+  .admin-topbar-search { display: none; }
+}
 .sidebar-open-toggle {
   display: none;
   flex-shrink: 0;

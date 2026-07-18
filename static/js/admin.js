@@ -37,6 +37,10 @@
     loadAnalytics();
     loadAuditLog();
     loadAgentConfig();
+    loadLlmConfig();
+    loadSupportConfig();
+    loadPromptVersions();
+    loadApiKeys();
   }
 
   // --- Login ---
@@ -450,6 +454,170 @@
   }
 
   document.getElementById("analytics-range").addEventListener("change", loadAnalytics);
+
+  // --- Settings: LLM provider override ---
+  async function loadLlmConfig() {
+    const res = await api("/api/tenant/llm-config");
+    const data = await res.json();
+    const desc = document.getElementById("llm-config-desc");
+    const resetBtn = document.getElementById("llm-config-reset");
+    if (data) {
+      desc.textContent = `Overrides the global default provider/model for this tenant. Currently using ${data.provider} / ${data.model}${data.has_custom_api_key ? " with a custom API key." : ", using the global API key."}`;
+      document.getElementById("llm-provider-input").value = data.provider;
+      document.getElementById("llm-model-input").value = data.model;
+      resetBtn.disabled = false;
+    } else {
+      desc.textContent = "Overrides the global default provider/model for this tenant. No override configured — using the global default.";
+      resetBtn.disabled = true;
+    }
+  }
+
+  document.getElementById("llm-config-save").addEventListener("click", async function () {
+    const statusEl = document.getElementById("llm-config-status");
+    const model = document.getElementById("llm-model-input").value.trim();
+    if (!model) {
+      statusEl.textContent = "Model is required.";
+      return;
+    }
+    const apiKeyInput = document.getElementById("llm-api-key-input");
+    await api("/api/tenant/llm-config", {
+      method: "POST",
+      body: JSON.stringify({
+        provider: document.getElementById("llm-provider-input").value,
+        model,
+        api_key: apiKeyInput.value || null,
+      }),
+    });
+    apiKeyInput.value = "";
+    statusEl.textContent = "Saved.";
+    await loadLlmConfig();
+  });
+
+  document.getElementById("llm-config-reset").addEventListener("click", async function () {
+    await api("/api/tenant/llm-config/reset", { method: "POST" });
+    document.getElementById("llm-config-status").textContent = "Reverted to the global default.";
+    document.getElementById("llm-model-input").value = "";
+    await loadLlmConfig();
+  });
+
+  // --- Settings: support inbox ---
+  async function loadSupportConfig() {
+    const res = await api("/api/tenant/support-config");
+    const data = await res.json();
+    if (data) document.getElementById("support-email-input").value = data.support_email;
+  }
+
+  document.getElementById("support-config-save").addEventListener("click", async function () {
+    const email = document.getElementById("support-email-input").value.trim();
+    await api("/api/tenant/support-config", { method: "POST", body: JSON.stringify({ support_email: email }) });
+    document.getElementById("support-config-status").textContent = "Saved.";
+  });
+
+  // --- Settings: prompt versions ---
+  function truncatePrompt(text) {
+    return text.length > 160 ? text.slice(0, 160) + "…" : text;
+  }
+
+  async function loadPromptVersions() {
+    const res = await api("/api/tenant/prompt-versions");
+    const versions = await res.json();
+    const tbody = document.querySelector("#prompt-version-table tbody");
+    const empty = document.getElementById("prompt-version-empty");
+    tbody.innerHTML = "";
+    empty.hidden = versions.length > 0;
+
+    versions.forEach((v) => {
+      const tr = document.createElement("tr");
+      const activeBadge = v.is_active ? ' <span class="badge badge-published">active</span>' : "";
+      const activateBtn = v.is_active ? "" : `<button type="button" class="btn-ghost btn-sm" data-activate-id="${v.id}">Activate</button>`;
+      tr.innerHTML = `<td class="num">v${v.version_number}${activeBadge}</td><td style="max-width:360px;">${truncatePrompt(v.prompt_text)}</td><td class="num">${v.created_at || "—"}</td><td>${activateBtn}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll("button[data-activate-id]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await api(`/api/tenant/prompt-versions/${btn.dataset.activateId}/activate`, { method: "POST" });
+        loadPromptVersions();
+      });
+    });
+  }
+
+  document.getElementById("prompt-version-save").addEventListener("click", async function () {
+    const draft = document.getElementById("prompt-draft-input");
+    const text = draft.value.trim();
+    if (!text) return;
+    await api("/api/tenant/prompt-versions", { method: "POST", body: JSON.stringify({ prompt_text: text }) });
+    draft.value = "";
+    await loadPromptVersions();
+  });
+
+  // --- Settings: API keys ---
+  async function loadApiKeys() {
+    const res = await api("/api/api-keys");
+    const keys = await res.json();
+    const tbody = document.querySelector("#api-key-table tbody");
+    const empty = document.getElementById("api-key-empty");
+    tbody.innerHTML = "";
+    empty.hidden = keys.length > 0;
+
+    keys.forEach((k) => {
+      const tr = document.createElement("tr");
+      const statusBadge = k.revoked_at ? '<span class="badge badge-error">revoked</span>' : '<span class="badge badge-published">active</span>';
+      const revokeBtn = k.revoked_at ? "" : `<button type="button" class="btn-danger btn-sm" data-revoke-id="${k.id}">Revoke</button>`;
+      tr.innerHTML = `<td>${k.name}</td><td><span class="badge badge-draft">${k.role}</span></td><td class="num">${k.key_prefix}…</td><td class="num">${k.created_at}</td><td>${statusBadge}</td><td>${revokeBtn}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll("button[data-revoke-id]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await api(`/api/api-keys/${btn.dataset.revokeId}/revoke`, { method: "POST" });
+        loadApiKeys();
+      });
+    });
+  }
+
+  document.getElementById("api-key-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const nameInput = document.getElementById("api-key-name-input");
+    const roleInput = document.getElementById("api-key-role-input");
+    const res = await api("/api/api-keys", {
+      method: "POST",
+      body: JSON.stringify({ name: nameInput.value.trim(), role: roleInput.value }),
+    });
+    const data = await res.json();
+    document.getElementById("api-key-created-value").textContent = data.api_key;
+    document.getElementById("api-key-created-banner").hidden = false;
+    nameInput.value = "";
+    roleInput.value = "viewer";
+    await loadApiKeys();
+  });
+
+  // --- Topbar search: live-filters table rows / list items on whichever
+  // admin page is currently active. Client-side only — no new endpoints,
+  // matches the rest of this file's "no framework, no build step" scope. ---
+  const searchInput = document.getElementById("admin-search");
+  if (searchInput) {
+    searchInput.addEventListener("input", function () {
+      const q = searchInput.value.trim().toLowerCase();
+      const activePage = document.querySelector(".admin-page:not([hidden])");
+      if (!activePage) return;
+      const rows = activePage.querySelectorAll("table.data-table tbody tr, ul.plain-list > li");
+      rows.forEach((row) => {
+        row.style.display = !q || row.textContent.toLowerCase().includes(q) ? "" : "none";
+      });
+    });
+  }
+
+  // Clear the search box whenever the active section changes so a filter
+  // from one page doesn't silently linger, hiding rows, on another.
+  document.querySelectorAll(".admin-nav-item[data-target]").forEach((btn) => {
+    btn.addEventListener("click", function () {
+      if (searchInput) {
+        searchInput.value = "";
+        document.querySelectorAll(".admin-page:not([hidden]) table.data-table tbody tr, .admin-page:not([hidden]) ul.plain-list > li").forEach((row) => { row.style.display = ""; });
+      }
+    });
+  });
 
   // Check session on load by attempting to fetch documents.
   api("/api/documents").then(showDashboard).catch(showLogin);
