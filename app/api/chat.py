@@ -85,14 +85,6 @@ def post_chat(req: ChatRequest, request: Request, tenant_id: int = Depends(resol
 
 @router.post("/transcript")
 def post_transcript(req: TranscriptRequest, tenant_id: int = Depends(resolve_tenant)):
-    """4.2: anonymous, opt-in — same `resolve_tenant` (not
-    `resolve_tenant_for_admin`) auth as `post_chat` above, matching
-    the rest of the chat widget's auth-free surface. Every failure
-    mode here (bad email, conversation not found for this tenant, no
-    messages yet, SMTP not configured) is a `TranscriptEmailError`
-    with a message safe to show an anonymous visitor directly — none
-    of them are "unexpected" the way post_chat's catch-all is, so this
-    doesn't need that same broad except-Exception fallback."""
     try:
         agent_name = resolve_theme(tenant_id)["agent_name"]
         send_transcript_email(tenant_id, req.conversation_id, req.email, agent_name=agent_name)
@@ -103,13 +95,6 @@ def post_transcript(req: TranscriptRequest, tenant_id: int = Depends(resolve_ten
 
 @router.post("/{message_id}/feedback")
 def post_message_feedback(message_id: int, req: FeedbackRequest, tenant_id: int = Depends(resolve_tenant)):
-    """3.2: anonymous, same auth-free surface as post_chat/post_transcript.
-    Rejects (400) an unknown rating value, (404) a message that doesn't
-    exist or doesn't belong to this tenant, (400) a user's own message
-    (only assistant answers can be rated), and (409) a second
-    submission for a message that already has feedback — the owner's
-    kickoff decision explicitly ruled out letting a visitor change
-    their vote, so this is a hard reject, not an upsert."""
     if req.rating not in ("up", "down"):
         raise HTTPException(status_code=400, detail="rating must be 'up' or 'down'")
 
@@ -146,11 +131,6 @@ def post_message_feedback(message_id: int, req: FeedbackRequest, tenant_id: int 
 
 @router.post("/{message_id}/escalate")
 def post_escalate(message_id: int, req: EscalationRequest, tenant_id: int = Depends(resolve_tenant)):
-    """3.4: anonymous, same auth-free surface as every other endpoint
-    in this file. Only ever called from the widget after ask() has
-    already returned needs_escalation: true for this exact message —
-    complete_escalation() re-validates that server-side rather than
-    trusting the client's word for it."""
     try:
         result = complete_escalation(tenant_id, message_id, req.email)
     except EscalationError as exc:

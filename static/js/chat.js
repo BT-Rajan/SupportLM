@@ -20,13 +20,6 @@
   const transcriptSend = document.getElementById("transcript-send");
   const transcriptCancel = document.getElementById("transcript-cancel");
   const transcriptStatus = document.getElementById("transcript-status");
-
-  // Phase 5 — 2.3: language selector. Persisted per-browser via
-  // localStorage (this is the real deployed widget, not a sandboxed
-  // artifact — localStorage is the correct, normal choice here) so a
-  // returning visitor doesn't have to re-pick every page load. Storage
-  // key is scoped by tenant slug since one browser may visit multiple
-  // tenants' widgets.
   const languageSelect = document.getElementById("language-select");
   const LANGUAGE_STORAGE_KEY = "supportlm-language-" + window.TENANT_SLUG;
 
@@ -35,8 +28,6 @@
       const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
       if (saved) languageSelect.value = saved;
     } catch (err) {
-      // localStorage unavailable (private browsing, disabled, etc.) —
-      // fall back silently to the selector's default value.
     }
   })();
 
@@ -44,8 +35,6 @@
     try {
       localStorage.setItem(LANGUAGE_STORAGE_KEY, languageSelect.value);
     } catch (err) {
-      // Same silent fallback as above — persistence is a nicety, not
-      // required for the selector to keep working this session.
     }
   });
 
@@ -84,10 +73,6 @@
   }
 
   function attachEscalation(wrap, messageId) {
-    // Phase 6 — 1.3: shown as its own inline panel under the assistant
-    // bubble, not folded into the meta row the way feedback/sources
-    // are — this needs an email input and a submit action, not just an
-    // icon click, so it gets more visual room.
     const panel = document.createElement("div");
     panel.className = "escalation-panel";
 
@@ -175,11 +160,6 @@
   }
 
   function attachFeedback(meta, messageId) {
-    // Phase 5 — 3.3: simple thumbs up/down, anonymous, no comment
-    // field. Disabled immediately on click — the server enforces "no
-    // re-voting" with a 409, but the widget shouldn't wait for that
-    // round-trip to reflect the same rule; a visitor shouldn't be able
-    // to click twice and only find out the second click did nothing.
     if (!messageId) return;
 
     const bar = document.createElement("div");
@@ -206,8 +186,6 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rating: rating }),
       }).catch(function () {
-        // Best-effort — a failed feedback submission shouldn't disrupt
-        // the chat experience with an error message of its own.
       });
     }
 
@@ -271,9 +249,6 @@
     if (row) row.remove();
   }
 
-  // WBS 4.3: the button starts `disabled` in chat.html — there's no
-  // conversation to email until the first exchange completes. Called
-  // once conversationId is first set inside sendQuestion() below.
   function enableTranscriptButton() {
     transcriptToggle.disabled = false;
     transcriptToggle.title = "Email me this conversation";
@@ -330,9 +305,6 @@
         body: JSON.stringify({ conversation_id: conversationId, email: email }),
       });
 
-      // Same defensive parse as sendQuestion() — the server always
-      // returns JSON, but don't throw into a blank error if that
-      // ever isn't true.
       const rawBody = await res.text();
       let data = null;
       try {
@@ -407,10 +379,6 @@
         }),
       });
 
-      // Parse the body defensively: the server always returns JSON now,
-      // but if something upstream (proxy, unexpected route, etc.) ever
-      // returns plain text again, we still want to show *that* text
-      // instead of throwing and falling into the generic catch below.
       const rawBody = await res.text();
       let data = null;
       try {
