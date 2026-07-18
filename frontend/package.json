@@ -1,0 +1,20 @@
+{
+  "name": "supportlm-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vue 3 frontends for SupportLM: the customer chat widget (templates/chat.html) and the admin console (templates/admin.html). Two separate single-entry Vite builds sharing one set of design tokens and component conventions.",
+  "scripts": {
+    "dev:chat": "vite --config vite.chat.config.js",
+    "dev:admin": "vite --config vite.admin.config.js",
+    "build:chat": "vite build --config vite.chat.config.js",
+    "build:admin": "vite build --config vite.admin.config.js",
+    "build": "rm -rf ../static/dist && npm run build:chat && npm run build:admin"
+  },
+  "dependencies": {
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite": "^5.2.0"
+  }
+}

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin · {{ tenant_slug }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/dist/admin-widget.css">
+  {# The admin console intentionally stays on the default palette
+     (tokens.css's fallback values) — no per-tenant accent override
+     here, unlike chat.html. That was already true of the old
+     admin.css and is unchanged by this rebuild. #}
+</head>
+<body>
+  <div id="admin-app"></div>
+  <script>
+    window.__SUPPORTLM_ADMIN_CONFIG__ = {
+      tenant_slug: {{ tenant_slug | tojson }}
+    };
+  </script>
+  <script type="module" src="/static/dist/admin-widget.js"></script>
+</body>
+</html>
