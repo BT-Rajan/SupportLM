@@ -95,6 +95,26 @@
         style="width: 100%; margin-bottom: 8px; resize: vertical;"
         placeholder="Tone/personality (e.g. warm and concise, avoids jargon, upbeat)"
       ></textarea>
+
+      <label for="confidence-threshold-input" style="display: block; margin-bottom: 4px;">
+        Retrieval confidence threshold: <strong id="confidence-threshold-value">0.75</strong>
+      </label>
+      <input
+        type="range"
+        id="confidence-threshold-input"
+        min="0"
+        max="1"
+        step="0.01"
+        value="0.75"
+        style="width: 100%; margin-bottom: 4px;"
+      />
+      <p class="hint" style="margin-bottom: 8px;">
+        How closely a question must match the knowledge base before the assistant
+        will answer from it. Lower = answers more often, higher risk of using a
+        weak match. Higher = escalates/declines more often, safer but more "I
+        don't know" replies.
+      </p>
+
       <button id="agent-config-save" class="btn-ghost">Save</button>
       <span id="agent-config-status" class="hint"></span>
     </section>

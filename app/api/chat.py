@@ -52,6 +52,7 @@ def post_chat(req: ChatRequest, request: Request, tenant_id: int = Depends(resol
             agent_name=theme["agent_name"],
             language=req.language,
             tone=theme["tone"],
+            confidence_threshold=theme["retrieval_confidence_threshold"],
         )
         # Soft warn only — never blocks the chat, per the owner's
         # decision that message limits warn rather than reject.

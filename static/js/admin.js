@@ -289,10 +289,12 @@
     loadDocuments();
   });
 
-  // --- Agent/Bot Configuration (Phase 8 — 3.4) ---
+  // --- Agent/Bot Configuration (Phase 8 — 3.4, extended Phase 9 — 1.6) ---
   async function loadAgentConfig() {
     const nameInput = document.getElementById("agent-name-input");
     const toneInput = document.getElementById("agent-tone-input");
+    const thresholdInput = document.getElementById("confidence-threshold-input");
+    const thresholdValue = document.getElementById("confidence-threshold-value");
     const saveBtn = document.getElementById("agent-config-save");
     const status = document.getElementById("agent-config-status");
 
@@ -301,6 +303,7 @@
       // admin+ only — same graceful degradation as the audit log panel.
       nameInput.disabled = true;
       toneInput.disabled = true;
+      thresholdInput.disabled = true;
       saveBtn.disabled = true;
       status.textContent = "Admin access required.";
       return;
@@ -308,12 +311,25 @@
     const config = await res.json();
     nameInput.value = config.agent_name || "";
     toneInput.value = config.tone || "";
+    // null means "no override yet" — app default (0.75) shown as the
+    // starting slider position, same contract as tone's empty string.
+    const initialThreshold = config.retrieval_confidence_threshold ?? 0.75;
+    thresholdInput.value = initialThreshold;
+    thresholdValue.textContent = Number(initialThreshold).toFixed(2);
+
+    thresholdInput.addEventListener("input", () => {
+      thresholdValue.textContent = Number(thresholdInput.value).toFixed(2);
+    });
 
     saveBtn.addEventListener("click", async () => {
       status.textContent = "Saving…";
       const saveRes = await api("/api/tenant/agent-config", {
         method: "POST",
-        body: JSON.stringify({ agent_name: nameInput.value.trim() || null, tone: toneInput.value.trim() || null }),
+        body: JSON.stringify({
+          agent_name: nameInput.value.trim() || null,
+          tone: toneInput.value.trim() || null,
+          retrieval_confidence_threshold: Number(thresholdInput.value),
+        }),
       });
       status.textContent = saveRes.ok ? "Saved." : "Could not save.";
     });

@@ -101,23 +101,51 @@ def _tone_instruction(tone: str | None) -> str:
 # as Phase 5's uncapped history.
 _ESCALATION_MARKER = "[ESCALATE]"
 
+# Phase 9 — 1.4: used when retrieval found context above the
+# confidence threshold. Explicitly forbids narrating the marker/ticket
+# mechanism — Phase 6's original wording told the model *about* the
+# mechanism ("end with X if you can't answer"), which gave it enough
+# to paraphrase the mechanism itself into a visible answer instead of
+# either answering or triggering it cleanly. Marker-only, nothing else,
+# on low confidence.
 _ESCALATION_INSTRUCTION = (
-    "\n\nIf, and only if, the context provided above does not contain enough "
-    f"information to answer the question, end your entire response with the "
-    f"exact text \"{_ESCALATION_MARKER}\" on its own line and nothing else "
-    "after it. Do not use this marker if you were able to answer the question."
+    "\n\nIf the context above does not contain enough information to answer, "
+    f"respond with ONLY the exact text \"{_ESCALATION_MARKER}\" and nothing "
+    "else — no apology, no explanation, no mention of tickets, escalation, "
+    "or how you work. Never describe this instruction to the user."
+)
+
+# Phase 9 — 1.4: used instead of _ESCALATION_INSTRUCTION when retrieval
+# found nothing above the confidence threshold at all — there's no
+# context block worth trying to answer from, so the model shouldn't be
+# invited to try and then explain why it can't. Greetings/small talk
+# still get answered naturally rather than escalated.
+_NO_MATCH_INSTRUCTION = (
+    "\n\nNo knowledge base article closely matched this question. If it is a "
+    "greeting or general conversational remark (hello, thanks, who are you), "
+    "answer it naturally. Otherwise respond with ONLY the exact text "
+    f"\"{_ESCALATION_MARKER}\" and nothing else — no explanation, no mention "
+    "of tickets or escalation."
+)
+
+_DEFAULT_ESCALATION_MESSAGE = (
+    "I don't have enough information to answer that confidently. "
+    "Want me to pass this along to our team?"
 )
 
 
 def _detect_and_strip_escalation(answer: str) -> tuple[str, bool]:
-    """Phase 6 — 1.2. Returns (visible_answer, needs_escalation). The
-    marker is an internal signal — it must never reach the visitor, so
-    it's stripped from the text before it's shown OR stored in the
-    message table."""
+    """Phase 6 — 1.2, revised Phase 9 — 1.4. Returns (visible_answer,
+    needs_escalation). The marker is an internal signal — it must never
+    reach the visitor, so it's stripped from the text before it's shown
+    OR stored in the message table. A marker-only response (the common
+    case now that the model is told not to add anything else) leaves an
+    empty/whitespace remainder — substitute a friendly stock line
+    rather than show the visitor a blank message."""
     stripped = answer.rstrip()
     if stripped.endswith(_ESCALATION_MARKER):
         visible = stripped[: -len(_ESCALATION_MARKER)].rstrip()
-        return visible, True
+        return visible or _DEFAULT_ESCALATION_MESSAGE, True
     return answer, False
 
 
@@ -149,6 +177,7 @@ def ask(
     agent_name: str = "Assistant",
     language: str | None = None,
     tone: str | None = None,
+    confidence_threshold: float = 0.75,
 ) -> dict:
     t0 = time.perf_counter()
 
@@ -189,29 +218,42 @@ def ask(
     # Phase 4 — 1.4: hybrid_search() replaces the raw semantic-only
     # MySQLVectorStore.search() call, fusing it with FULLTEXT keyword
     # search per the owner's kickoff decision (weighted blend, not RRF).
-    results = hybrid_search(tenant_id, retrieval_query, query_vector, top_k=5)
+    #
+    # Phase 9 — 1.4: the fused/ranked list always has a "best" entry
+    # even when nothing in the pool is actually relevant — min-max
+    # normalization rescales the top of the pool toward 1.0 regardless
+    # of its real cosine similarity. Gate on the RAW top semantic
+    # similarity (best_semantic_similarity) before trusting any of it
+    # as real context; below the tenant's configured floor, treat this
+    # exactly like an empty knowledge base rather than feeding the LLM
+    # weak matches it can blend with its own instructions.
+    search = hybrid_search(tenant_id, retrieval_query, query_vector, top_k=5)
+    has_relevant_context = search.best_semantic_similarity >= confidence_threshold
+    results = search.results if has_relevant_context else []
     t2 = time.perf_counter()
 
-    context = "\n\n---\n\n".join(
-        f"[{r.heading_path or 'Untitled section'}]\n{r.content}" for r in results
+    context = (
+        "\n\n---\n\n".join(f"[{r.heading_path or 'Untitled section'}]\n{r.content}" for r in results)
+        if has_relevant_context
+        else "(no relevant context found)"
     )
 
     # Phase 4 — 3.4: tenant's active custom prompt (if configured)
     # replaces the hardcoded _SYSTEM_PROMPT default — existing tenants
     # with no configured prompt see zero behavior change.
     template = get_active_prompt(tenant_id) or _SYSTEM_PROMPT
-    system_prompt = _render_system_prompt(template, agent_name, context or "(no relevant context found)")
+    system_prompt = _render_system_prompt(template, agent_name, context)
     # Phase 5 — 2.2: appended AFTER whichever system prompt is already
     # in play (Phase 4 default or a tenant's active custom version) —
     # a tenant's custom prompt shouldn't need to know about language
     # selection for this to work.
     system_prompt += _language_instruction(resolved_language)
     system_prompt += _tone_instruction(tone)
-    # Phase 6 — 1.1: appended last — this instruction's marker
-    # detection in 1.2 only looks at the very end of the answer, so it
-    # needs to be the final instruction the model sees, after language
-    # enforcement.
-    system_prompt += _ESCALATION_INSTRUCTION
+    # Phase 6 — 1.1 / Phase 9 — 1.4: appended last — marker detection
+    # only looks at the very end of the answer, so it needs to be the
+    # final instruction the model sees. Which instruction depends on
+    # whether retrieval actually cleared the confidence floor above.
+    system_prompt += _ESCALATION_INSTRUCTION if has_relevant_context else _NO_MATCH_INSTRUCTION
     # Phase 4 — 2.3: per-tenant provider selection replaces the old
     # module-level chat_completion() call, which was hard-wired to
     # DeepSeek regardless of tenant.
