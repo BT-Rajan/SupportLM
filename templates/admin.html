@@ -6,7 +6,7 @@
   <title>Admin · {{ tenant_slug }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/admin.css">
 </head>
 <body>
@@ -15,7 +15,9 @@
 
   <div id="login-view" class="auth-shell" hidden>
     <div class="auth-card">
+      <div class="auth-mark" aria-hidden="true">S</div>
       <p class="auth-title">Admin sign in</p>
+      <p class="auth-sub">{{ tenant_slug }}</p>
       <form id="login-form" class="auth-form">
         <input id="login-email" class="field-input" type="email" placeholder="Email" autocomplete="username" required>
         <input id="login-password" class="field-input" type="password" placeholder="Password" autocomplete="current-password" required>
@@ -25,154 +27,212 @@
     </div>
   </div>
 
-  <div id="dashboard-view" class="dashboard" hidden>
-    <header class="dash-header">
-      <p class="dash-title">Admin</p>
-      <button type="button" id="logout-btn" class="btn-ghost">Log out</button>
-    </header>
+  <div id="dashboard-view" class="admin-shell" hidden>
 
-    <section class="panel">
-      <h2 class="panel-title">Categories</h2>
-      <form id="category-form" class="inline-form">
-        <input id="category-name" class="field-input" type="text" placeholder="New category name" required>
-        <button type="submit" class="btn-primary">Add</button>
-      </form>
-      <ul id="category-list" class="plain-list"></ul>
-      <p id="category-empty" class="empty-state" hidden>
-        <span class="empty-title">No categories yet</span>
-        <span class="empty-body">Add one above to start organizing documents.</span>
-      </p>
-    </section>
-
-    <section class="panel">
-      <h2 class="panel-title">Upload document</h2>
-      <form id="upload-form" class="inline-form">
-        <input id="upload-file" class="field-input" type="file" accept=".md,.markdown" required>
-        <select id="upload-category" class="field-input"></select>
-        <button type="submit" class="btn-primary">Upload</button>
-      </form>
-      <p class="hint">New uploads start as drafts — publish them below once they're ready to answer questions.</p>
-    </section>
-
-    <section class="panel">
-      <h2 class="panel-title">Website sync</h2>
-      <form id="sync-source-form" class="inline-form">
-        <input id="sync-source-url" class="field-input" type="url" placeholder="https://example.com/help/billing" required>
-        <button type="submit" class="btn-primary">Add URL</button>
-      </form>
-      <ul id="sync-source-list" class="plain-list"></ul>
-      <p id="sync-source-empty" class="empty-state" hidden>
-        <span class="empty-title">No sync sources yet</span>
-        <span class="empty-body">Add a URL above to keep a page synced into your knowledge base.</span>
-      </p>
-      <button type="button" id="sync-now-btn" class="btn-ghost">Sync now</button>
-      <p id="sync-now-status" class="hint" hidden></p>
-      <p class="hint">Synced pages start as drafts too — publish them below once they're ready. Sync is manual only; nothing runs automatically.</p>
-    </section>
-
-    <section class="panel">
-      <h2 class="panel-title">Duplicate content review</h2>
-      <button type="button" id="scan-duplicates-btn" class="btn-ghost">Scan for duplicates</button>
-      <p id="scan-duplicates-status" class="hint" hidden></p>
-      <ul id="duplicate-flag-list" class="plain-list"></ul>
-      <p id="duplicate-flag-empty" class="empty-state" hidden>
-        <span class="empty-title">No duplicates flagged</span>
-        <span class="empty-body">Run a scan above to check for near-duplicate titles and headings.</span>
-      </p>
-      <p class="hint">Compares document titles and section headings for near-duplicate text. Scanning is manual only.</p>
-    </section>
-
-    <section class="panel">
-      <h2 class="panel-title">Agent Configuration</h2>
-      <p class="hint">Name and tone/personality merged into every reply's system prompt.</p>
-      <div class="inline-form">
-        <input class="field-input" id="agent-name-input" placeholder="Agent name (e.g. Ava)" />
-      </div>
-      <textarea
-        id="agent-tone-input"
-        class="field-input"
-        rows="3"
-        style="width: 100%; margin-bottom: 8px; resize: vertical;"
-        placeholder="Tone/personality (e.g. warm and concise, avoids jargon, upbeat)"
-      ></textarea>
-
-      <label for="confidence-threshold-input" style="display: block; margin-bottom: 4px;">
-        Retrieval confidence threshold: <strong id="confidence-threshold-value">0.75</strong>
-      </label>
-      <input
-        type="range"
-        id="confidence-threshold-input"
-        min="0"
-        max="1"
-        step="0.01"
-        value="0.75"
-        style="width: 100%; margin-bottom: 4px;"
-      />
-      <p class="hint" style="margin-bottom: 8px;">
-        How closely a question must match the knowledge base before the assistant
-        will answer from it. Lower = answers more often, higher risk of using a
-        weak match. Higher = escalates/declines more often, safer but more "I
-        don't know" replies.
-      </p>
-
-      <button id="agent-config-save" class="btn-ghost">Save</button>
-      <span id="agent-config-status" class="hint"></span>
-    </section>
-
-    <section class="panel">
-      <h2 class="panel-title">Audit Log</h2>
-      <p class="hint">Uploads, edits, deletes, and admin logins for the last 30 days.</p>
-      <ul id="audit-log-list" class="plain-list"></ul>
-      <p id="audit-log-empty" class="empty-state" hidden>
-        <span class="empty-title">No recent activity</span>
-        <span class="empty-body">Uploads, edits, deletes, and logins will show up here.</span>
-      </p>
-    </section>
-
-    <section class="panel">
-      <h2 class="panel-title">Analytics</h2>
-      <div class="analytics-controls">
-        <label class="hint" for="analytics-range">Range:</label>
-        <select id="analytics-range" class="field-input">
-          <option value="7">Last 7 days</option>
-          <option value="30" selected>Last 30 days</option>
-          <option value="90">Last 90 days</option>
-        </select>
-        <a id="analytics-export-btn" class="btn-ghost" href="#" download>Download CSV</a>
+    <aside class="admin-sidebar">
+      <div class="admin-brand">
+        <span class="admin-brand-mark" aria-hidden="true">S</span>
+        <div class="admin-brand-text">
+          <span class="admin-brand-name">Admin</span>
+          <span class="admin-brand-slug">{{ tenant_slug }}</span>
+        </div>
       </div>
 
-      <div class="stat-grid" id="analytics-stats"></div>
+      <nav class="admin-nav" id="admin-nav">
+        <button type="button" class="admin-nav-item" data-target="overview" data-label="Overview" data-sub="Usage, cost, and satisfaction at a glance.">
+          <svg class="admin-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 11.5h4v5.5H3v-5.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6.5h4v10.5H8V6.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M13 3h4v14h-4V3Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          Overview
+        </button>
+        <button type="button" class="admin-nav-item" data-target="knowledge" data-label="Knowledge base" data-sub="Categories, documents, website sync, and duplicate review.">
+          <svg class="admin-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 4.5h6.5c1.1 0 2 .9 2 2V17H6c-1.1 0-2-.9-2-2V4.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M12.5 6.5H15c.55 0 1 .45 1 1V15c0 1.1-.9 2-2 2h-1.5" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 8h4M6 11h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          Knowledge base
+        </button>
+        <button type="button" class="admin-nav-item" data-target="agent" data-label="Agent" data-sub="Name, tone, and retrieval confidence merged into every reply.">
+          <svg class="admin-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="7.5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M3.5 17c0-3 2.9-5.4 6.5-5.4s6.5 2.4 6.5 5.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          Agent
+        </button>
+        <button type="button" class="admin-nav-item" data-target="audit" data-label="Audit log" data-sub="Uploads, edits, deletes, and admin logins for the last 30 days.">
+          <svg class="admin-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="6.75" stroke="currentColor" stroke-width="1.4"/><path d="M10 6.25V10l2.6 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Audit log
+        </button>
+      </nav>
 
-      <h3 class="panel-subtitle">Answers per day</h3>
-      <div id="analytics-volume-chart" class="chart-wrap"></div>
+      <div class="admin-sidebar-foot">
+        <button type="button" id="logout-btn" class="btn-ghost" style="width:100%;">Log out</button>
+      </div>
+    </aside>
 
-      <h3 class="panel-subtitle">Estimated LLM cost by model</h3>
-      <div id="analytics-cost-chart" class="chart-wrap"></div>
+    <div class="admin-main">
+      <header class="admin-topbar">
+        <div>
+          <h1 class="admin-page-title" id="admin-page-title">Overview</h1>
+          <p class="admin-page-sub" id="admin-page-sub">Usage, cost, and satisfaction at a glance.</p>
+        </div>
+      </header>
 
-      <h3 class="panel-subtitle">Flagged questions</h3>
-      <ul id="analytics-flagged-list" class="plain-list"></ul>
-      <p id="analytics-flagged-empty" class="empty-state" hidden>
-        <span class="empty-title">Nothing flagged</span>
-        <span class="empty-body">Escalated or low-confidence answers in this range will show up here.</span>
-      </p>
-    </section>
+      <div class="admin-content">
 
-    <section class="panel">
-      <h2 class="panel-title">Documents</h2>
-      <table id="document-table" class="data-table">
-        <thead>
-          <tr><th>Title</th><th>Status</th><th>Review state</th><th></th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <p id="document-empty" class="empty-state" hidden>
-        <span class="empty-title">No documents yet</span>
-        <span class="empty-body">Upload a Markdown file above to build your knowledge base.</span>
-      </p>
-    </section>
+        <!-- ============ Overview ============ -->
+        <section class="admin-page" data-page="overview">
+          <section class="panel">
+            <h2 class="panel-title">Analytics</h2>
+            <p class="panel-desc">A snapshot of conversation volume, cost, and satisfaction for the selected range.</p>
+            <div class="analytics-controls">
+              <label class="hint" for="analytics-range">Range:</label>
+              <select id="analytics-range" class="field-input">
+                <option value="7">Last 7 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+              </select>
+              <a id="analytics-export-btn" class="btn-ghost" href="#" download>Download CSV</a>
+            </div>
+
+            <div class="stat-grid" id="analytics-stats"></div>
+
+            <h3 class="panel-subtitle">Answers per day</h3>
+            <div id="analytics-volume-chart" class="chart-wrap"></div>
+
+            <h3 class="panel-subtitle">Estimated LLM cost by model</h3>
+            <div id="analytics-cost-chart" class="chart-wrap"></div>
+
+            <h3 class="panel-subtitle">Flagged questions</h3>
+            <ul id="analytics-flagged-list" class="plain-list"></ul>
+            <p id="analytics-flagged-empty" class="empty-state" hidden>
+              <span class="empty-title">Nothing flagged</span>
+              <span class="empty-body">Escalated or low-confidence answers in this range will show up here.</span>
+            </p>
+          </section>
+        </section>
+
+        <!-- ============ Knowledge base ============ -->
+        <section class="admin-page" data-page="knowledge" hidden>
+          <section class="panel">
+            <h2 class="panel-title">Categories</h2>
+            <p class="panel-desc">Group documents so tenants and the composer can find them faster.</p>
+            <form id="category-form" class="inline-form">
+              <input id="category-name" class="field-input" type="text" placeholder="New category name" required>
+              <button type="submit" class="btn-primary">Add</button>
+            </form>
+            <ul id="category-list" class="plain-list"></ul>
+            <p id="category-empty" class="empty-state" hidden>
+              <span class="empty-title">No categories yet</span>
+              <span class="empty-body">Add one above to start organizing documents.</span>
+            </p>
+          </section>
+
+          <section class="panel">
+            <h2 class="panel-title">Upload document</h2>
+            <p class="panel-desc">New uploads start as drafts — publish them below once they're ready to answer questions.</p>
+            <form id="upload-form" class="inline-form">
+              <input id="upload-file" class="field-input" type="file" accept=".md,.markdown" required>
+              <select id="upload-category" class="field-input"></select>
+              <button type="submit" class="btn-primary">Upload</button>
+            </form>
+          </section>
+
+          <section class="panel">
+            <h2 class="panel-title">Website sync</h2>
+            <p class="panel-desc">Keep a page synced into your knowledge base. Sync is manual only; nothing runs automatically.</p>
+            <form id="sync-source-form" class="inline-form">
+              <input id="sync-source-url" class="field-input" type="url" placeholder="https://example.com/help/billing" required>
+              <button type="submit" class="btn-primary">Add URL</button>
+            </form>
+            <ul id="sync-source-list" class="plain-list"></ul>
+            <p id="sync-source-empty" class="empty-state" hidden>
+              <span class="empty-title">No sync sources yet</span>
+              <span class="empty-body">Add a URL above to keep a page synced into your knowledge base.</span>
+            </p>
+            <button type="button" id="sync-now-btn" class="btn-ghost">Sync now</button>
+            <p id="sync-now-status" class="hint" hidden></p>
+            <p class="hint">Synced pages start as drafts too — publish them below once they're ready.</p>
+          </section>
+
+          <section class="panel">
+            <h2 class="panel-title">Duplicate content review</h2>
+            <p class="panel-desc">Compares document titles and section headings for near-duplicate text. Scanning is manual only.</p>
+            <button type="button" id="scan-duplicates-btn" class="btn-ghost">Scan for duplicates</button>
+            <p id="scan-duplicates-status" class="hint" hidden></p>
+            <ul id="duplicate-flag-list" class="plain-list"></ul>
+            <p id="duplicate-flag-empty" class="empty-state" hidden>
+              <span class="empty-title">No duplicates flagged</span>
+              <span class="empty-body">Run a scan above to check for near-duplicate titles and headings.</span>
+            </p>
+          </section>
+
+          <section class="panel">
+            <h2 class="panel-title">Documents</h2>
+            <table id="document-table" class="data-table">
+              <thead>
+                <tr><th>Title</th><th>Status</th><th>Review state</th><th></th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <p id="document-empty" class="empty-state" hidden>
+              <span class="empty-title">No documents yet</span>
+              <span class="empty-body">Upload a Markdown file above to build your knowledge base.</span>
+            </p>
+          </section>
+        </section>
+
+        <!-- ============ Agent ============ -->
+        <section class="admin-page" data-page="agent" hidden>
+          <section class="panel">
+            <h2 class="panel-title">Agent configuration</h2>
+            <p class="panel-desc">Name and tone/personality merged into every reply's system prompt.</p>
+            <div class="inline-form">
+              <input class="field-input" id="agent-name-input" placeholder="Agent name (e.g. Ava)" />
+            </div>
+            <textarea
+              id="agent-tone-input"
+              class="field-input"
+              rows="3"
+              style="width: 100%; margin-bottom: 14px; resize: vertical;"
+              placeholder="Tone/personality (e.g. warm and concise, avoids jargon, upbeat)"
+            ></textarea>
+
+            <label for="confidence-threshold-input" class="field-label" style="margin-bottom:8px;">
+              Retrieval confidence threshold: <strong id="confidence-threshold-value" style="color:var(--ink); font-family:var(--font-mono);">0.75</strong>
+            </label>
+            <input
+              type="range"
+              id="confidence-threshold-input"
+              min="0"
+              max="1"
+              step="0.01"
+              value="0.75"
+              style="width: 100%; margin-bottom: 6px;"
+            />
+            <p class="hint" style="margin-bottom: 16px;">
+              How closely a question must match the knowledge base before the assistant
+              will answer from it. Lower = answers more often, higher risk of using a
+              weak match. Higher = escalates/declines more often, safer but more "I
+              don't know" replies.
+            </p>
+
+            <button id="agent-config-save" class="btn-primary">Save</button>
+            <span id="agent-config-status" class="hint"></span>
+          </section>
+        </section>
+
+        <!-- ============ Audit log ============ -->
+        <section class="admin-page" data-page="audit" hidden>
+          <section class="panel">
+            <h2 class="panel-title">Audit log</h2>
+            <p class="panel-desc">Uploads, edits, deletes, and admin logins for the last 30 days.</p>
+            <ul id="audit-log-list" class="plain-list"></ul>
+            <p id="audit-log-empty" class="empty-state" hidden>
+              <span class="empty-title">No recent activity</span>
+              <span class="empty-body">Uploads, edits, deletes, and logins will show up here.</span>
+            </p>
+          </section>
+        </section>
+
+      </div>
+    </div>
   </div>
 
   <script>window.TENANT_SLUG = {{ tenant_slug | tojson }};</script>
   <script src="/static/js/admin.js"></script>
+  <script src="/static/js/admin-nav.js"></script>
 </body>
 </html>
