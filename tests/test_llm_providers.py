@@ -112,16 +112,23 @@ def test_null_tenant_api_key_falls_back_to_matching_global_key():
     assert provider._api_key == settings.openai_api_key
 
 
-def test_unknown_provider_raises():
+def test_provider_enum_rejects_invalid_value_at_db_level():
+    """Confirms `tenant_llm_config.provider` is a real ENUM at the
+    schema level, not just an app-layer convention — an invalid value
+    can't be written to the table at all, regardless of what any
+    Python code does or doesn't check.
+
+    Renamed from `test_unknown_provider_raises`, which claimed (in its
+    own docstring) to test `get_provider()`'s defensive `raise
+    ValueError` branch "in principle" without ever actually calling
+    `get_provider()` — found via a repo-wide dead-code audit, where the
+    unused `get_provider` import was the tell. This test is left as-is
+    under its new, accurate name; see
+    test_get_provider_raises_on_unknown_provider_value below for a
+    test that actually exercises that branch."""
     from app.db.pool import get_conn
 
-    from app.core.llm_providers import get_provider
-
     tenant_id = _ensure_tenant("pytest-llm-badprovider")
-    # Bypass the ENUM constraint isn't possible via normal INSERT, so
-    # this asserts get_provider()'s own defensive branch is reachable
-    # in principle by directly exercising unknown-value handling — the
-    # ENUM itself is the first line of defense at the DB layer.
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -142,3 +149,29 @@ def test_unknown_provider_raises():
                 (tenant_id,),
             )
             cur.close()
+
+
+def test_get_provider_raises_on_unknown_provider_value(monkeypatch):
+    """Actually exercises get_provider()'s own `raise ValueError(...)`
+    branch — the one the old, misleadingly-named test above claimed to
+    cover without ever calling get_provider() at all. Since the DB's
+    ENUM constraint means an invalid provider value can never actually
+    be read back from a real tenant_llm_config row (confirmed by the
+    test above), the only way to reach this branch is to monkeypatch
+    the internal DB-lookup boundary and hand get_provider() a
+    dict-shaped row it wouldn't normally get to see. If this ENUM is
+    ever loosened (a raw VARCHAR, a different DB engine that doesn't
+    enforce it, a migration mistake) without a corresponding app-layer
+    check, this is the one test that actually verifies get_provider()
+    fails loudly instead of silently misrouting to some other
+    provider."""
+    from app.core import llm_providers
+
+    monkeypatch.setattr(
+        llm_providers,
+        "_get_tenant_llm_config",
+        lambda tenant_id: {"provider": "not-a-real-provider", "model": "x", "api_key": None},
+    )
+
+    with pytest.raises(ValueError, match="Unknown provider 'not-a-real-provider'"):
+        llm_providers.get_provider(tenant_id=1)
