@@ -7,30 +7,52 @@
         <tr><th>Title</th><th>Status</th><th>Review state</th><th></th></tr>
       </thead>
       <tbody>
-        <tr v-for="d in documents" :key="d.id">
-          <td>{{ d.title }}</td>
-          <td>
-            <span v-if="d.status === 'error'" class="badge badge-error" :title="d.error_message || ''">error</span>
-            <span v-else class="badge badge-draft">{{ d.status }}</span>
-          </td>
-          <td>
-            <span class="badge" :class="reviewBadgeClass(d.review_state)">{{ d.review_state }}</span>
-          </td>
-          <td>
-            <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
-              <button
-                v-for="t in transitions(d.review_state)"
-                :key="t.state"
-                type="button"
-                class="btn-ghost btn-sm"
-                :disabled="movingId === d.id"
-                @click="setReviewState(d, t.state)"
-              >{{ t.label }}</button>
-              <button v-if="d.status !== 'ready'" type="button" class="btn-ghost btn-sm" @click="retry(d)">Retry</button>
-              <button type="button" class="btn-danger btn-sm" @click="remove(d)">Delete</button>
-            </div>
-          </td>
-        </tr>
+        <template v-for="d in documents" :key="d.id">
+          <tr>
+            <td>{{ d.title }}</td>
+            <td>
+              <span v-if="d.status === 'error'" class="badge badge-error" :title="d.error_message || ''">error</span>
+              <span v-else class="badge badge-draft">{{ d.status }}</span>
+            </td>
+            <td>
+              <span class="badge" :class="reviewBadgeClass(d.review_state)">{{ d.review_state }}</span>
+            </td>
+            <td>
+              <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+                <button type="button" class="btn-ghost btn-sm" @click="togglePreview(d)">
+                  {{ previewOpenId === d.id ? "Hide content" : "View content" }}
+                </button>
+                <button
+                  v-for="t in transitions(d.review_state)"
+                  :key="t.state"
+                  type="button"
+                  class="btn-ghost btn-sm"
+                  :disabled="movingId === d.id"
+                  @click="setReviewState(d, t.state)"
+                >{{ t.label }}</button>
+                <button v-if="d.status !== 'ready'" type="button" class="btn-ghost btn-sm" @click="retry(d)">Retry</button>
+                <button type="button" class="btn-danger btn-sm" @click="remove(d)">Delete</button>
+              </div>
+            </td>
+          </tr>
+          <tr v-if="previewOpenId === d.id">
+            <td colspan="4">
+              <p v-if="previewLoading" class="hint">Loading…</p>
+              <template v-else-if="previewError">
+                <p class="hint" style="color:var(--error, #c0392b);">{{ previewError }}</p>
+              </template>
+              <template v-else-if="preview">
+                <p class="hint" style="margin-bottom:6px;">
+                  {{ preview.chunk_count }} chunk{{ preview.chunk_count === 1 ? "" : "s" }} stored for this document.
+                  This is the actual text that was chunked and embedded — if it looks like navigation/boilerplate
+                  rather than the page's real content, the source likely needs JavaScript to render and a plain
+                  fetch won't capture it.
+                </p>
+                <pre style="white-space:pre-wrap; max-height:280px; overflow:auto; background:var(--surface-alt); border:1px solid var(--border); border-radius:8px; padding:12px; font-family:var(--font-mono); font-size:12px;">{{ preview.content }}<span v-if="preview.truncated">…</span></pre>
+              </template>
+            </td>
+          </tr>
+        </template>
       </tbody>
     </table>
     <p v-else class="empty-state">
@@ -66,12 +88,35 @@ const TRANSITIONS = {
 };
 const movingId = ref(null);
 
+const previewOpenId = ref(null);
+const preview = ref(null);
+const previewLoading = ref(false);
+const previewError = ref("");
+
 function transitions(state) {
   return TRANSITIONS[state] || [];
 }
 
 function reviewBadgeClass(state) {
   return state === "published" ? "badge-published" : state === "review" ? "badge-review" : "badge-draft";
+}
+
+async function togglePreview(doc) {
+  if (previewOpenId.value === doc.id) {
+    previewOpenId.value = null;
+    return;
+  }
+  previewOpenId.value = doc.id;
+  preview.value = null;
+  previewError.value = "";
+  previewLoading.value = true;
+  try {
+    preview.value = await props.api(`/api/documents/${doc.id}/preview`);
+  } catch (err) {
+    previewError.value = err instanceof ApiError ? err.message : "Could not load document content.";
+  } finally {
+    previewLoading.value = false;
+  }
 }
 
 async function load() {

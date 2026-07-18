@@ -288,6 +288,45 @@ def _hydrate_flags(tenant_id: int, flag_ids: list[int]) -> list[DuplicateFlagOut
     return [DuplicateFlagOut(**{**row, "detected_at": str(row["detected_at"])}) for row in rows]
 
 
+class DocumentPreviewOut(BaseModel):
+    title: str
+    content: str
+    truncated: bool
+    chunk_count: int
+
+
+@router.get("/{document_id}/preview", response_model=DocumentPreviewOut)
+def preview_document(document_id: int, tenant_id: int = Depends(require_role("viewer"))):
+    """Shows what's actually stored for a document — the raw text that
+    was chunked/embedded, not just its title and status. Added after a
+    website-sync case where the document was 'ready' and 'published'
+    but chat still couldn't answer from it: status/review_state only
+    say ingestion *ran*, not that it captured anything useful. A JS-
+    rendered page fetched with a plain HTTP GET (see
+    app/services/website_sync.py) can "succeed" while extracting
+    almost nothing but nav/boilerplate — this makes that visible
+    directly instead of requiring a DB query to find out."""
+    _PREVIEW_CHARS = 4000
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT title, raw_markdown FROM document WHERE id = %s AND tenant_id = %s", (document_id, tenant_id))
+        row = cur.fetchone()
+        if row is None:
+            cur.close()
+            raise HTTPException(status_code=404, detail="Document not found")
+        cur.execute("SELECT COUNT(*) AS n FROM document_chunk WHERE document_id = %s AND tenant_id = %s", (document_id, tenant_id))
+        chunk_count = cur.fetchone()["n"]
+        cur.close()
+
+    text = row["raw_markdown"] or ""
+    return DocumentPreviewOut(
+        title=row["title"],
+        content=text[:_PREVIEW_CHARS],
+        truncated=len(text) > _PREVIEW_CHARS,
+        chunk_count=chunk_count,
+    )
+
+
 @router.post("/{document_id}/reindex", response_model=DocumentOut)
 def reindex_document(document_id: int, background_tasks: BackgroundTasks, tenant_id: int = Depends(require_role("editor"))):
     with get_conn() as conn:
