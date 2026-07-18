@@ -121,7 +121,7 @@ def test_admin_blocked_from_tenant_they_dont_own():
     from app.core.security import hash_password
 
     tenant_a = _ensure_tenant("test-cross-tenant-a", "active")
-    tenant_b = _ensure_tenant("test-cross-tenant-b", "active")
+    _ensure_tenant("test-cross-tenant-b", "active")
     admin_id = _ensure_admin("cross-tenant-test@example.com", hash_password("testpass123"))
     _link(tenant_a, admin_id)  # deliberately NOT linked to tenant_b
 
