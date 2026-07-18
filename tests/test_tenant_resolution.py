@@ -100,8 +100,7 @@ def test_active_tenant_page_renders_with_slug():
     _ensure_tenant("test-active-tenant", "active")
     resp = _client().get("/t/test-active-tenant/")
     assert resp.status_code == 200
-    assert "window.__SUPPORTLM_CONFIG__" in resp.text
-    assert 'tenant_slug: "test-active-tenant"' in resp.text
+    assert 'window.TENANT_SLUG = "test-active-tenant"' in resp.text
 
 
 def test_trial_tenant_allowed_through():
@@ -122,7 +121,7 @@ def test_admin_blocked_from_tenant_they_dont_own():
     from app.core.security import hash_password
 
     tenant_a = _ensure_tenant("test-cross-tenant-a", "active")
-    tenant_b = _ensure_tenant("test-cross-tenant-b", "active")
+    _ensure_tenant("test-cross-tenant-b", "active")
     admin_id = _ensure_admin("cross-tenant-test@example.com", hash_password("testpass123"))
     _link(tenant_a, admin_id)  # deliberately NOT linked to tenant_b
 

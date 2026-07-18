@@ -80,7 +80,7 @@ def _client():
 
 def _login(client, email):
     resp = client.post(
-        f"/t/test-rbac-tenant/api/auth/login",
+        "/t/test-rbac-tenant/api/auth/login",
         json={"email": email, "password": "testpass123"},
     )
     assert resp.status_code == 200, resp.text

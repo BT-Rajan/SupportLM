@@ -21,6 +21,20 @@ class SearchResult:
     similarity: float
 
 
+@dataclass
+class HybridSearchResult:
+    """Phase 9 — 1.2: wraps hybrid_search()'s fused/ranked results with
+    the raw (pre-normalization) top semantic similarity, so callers can
+    gate on absolute confidence — `_min_max_normalize` always rescales
+    the pool's best result toward 1.0, which makes "closest available
+    match" indistinguishable from "actually relevant match" once fused.
+    `best_semantic_similarity` is the one number in this whole pipeline
+    that isn't relative to the rest of the pool."""
+
+    results: list[SearchResult]
+    best_semantic_similarity: float
+
+
 class VectorStore(Protocol):
     def search(self, tenant_id: int, query_vector: list[float], top_k: int = 5) -> list[SearchResult]: ...
 
@@ -149,7 +163,7 @@ def hybrid_search(
     keyword_weight: float = 0.3,
     semantic_pool: int = 20,
     keyword_pool: int = 20,
-) -> list[SearchResult]:
+) -> HybridSearchResult:
     """Phase 4 — 1.3: fuse semantic (cosine) and keyword (FULLTEXT)
     search via a weighted blend of independently min-max-normalized
     scores. NOT reciprocal rank fusion — the owner explicitly chose a
@@ -165,9 +179,15 @@ def hybrid_search(
     `keyword_weight` in [0, 1]: 0 disables keyword's contribution
     (pure semantic), 1 disables semantic's contribution (pure keyword)
     — useful for isolating each signal in tests.
+
+    Phase 9 — 1.2: returns a HybridSearchResult, not a bare list —
+    callers that need to gate on absolute confidence (chat.py) read
+    `.best_semantic_similarity`; callers that just want ranked chunks
+    (anything else) read `.results`.
     """
     semantic_results = _semantic_store.search(tenant_id, query_vector, top_k=semantic_pool)
     keyword_results = keyword_search(tenant_id, query, top_k=keyword_pool)
+    best_semantic_similarity = semantic_results[0].similarity if semantic_results else 0.0
 
     semantic_scores = _min_max_normalize([r.similarity for r in semantic_results])
     keyword_scores = _min_max_normalize([r.similarity for r in keyword_results])
@@ -191,4 +211,7 @@ def hybrid_search(
         fused.append((final_score, result))
 
     fused.sort(key=lambda pair: pair[0], reverse=True)
-    return [result for _, result in fused[:top_k]]
+    return HybridSearchResult(
+        results=[result for _, result in fused[:top_k]],
+        best_semantic_similarity=best_semantic_similarity,
+    )

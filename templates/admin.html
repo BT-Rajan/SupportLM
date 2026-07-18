@@ -6,20 +6,173 @@
   <title>Admin · {{ tenant_slug }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/dist/admin-widget.css">
-  {# The admin console intentionally stays on the default palette
-     (tokens.css's fallback values) — no per-tenant accent override
-     here, unlike chat.html. That was already true of the old
-     admin.css and is unchanged by this rebuild. #}
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/admin.css">
 </head>
 <body>
-  <div id="admin-app"></div>
-  <script>
-    window.__SUPPORTLM_ADMIN_CONFIG__ = {
-      tenant_slug: {{ tenant_slug | tojson }}
-    };
-  </script>
-  <script type="module" src="/static/dist/admin-widget.js"></script>
+
+  <p id="session-loading" class="hint" style="text-align:center;padding:32px 0;">Checking session…</p>
+
+  <div id="login-view" class="auth-shell" hidden>
+    <div class="auth-card">
+      <p class="auth-title">Admin sign in</p>
+      <form id="login-form" class="auth-form">
+        <input id="login-email" class="field-input" type="email" placeholder="Email" autocomplete="username" required>
+        <input id="login-password" class="field-input" type="password" placeholder="Password" autocomplete="current-password" required>
+        <button type="submit" class="btn-primary">Log in</button>
+      </form>
+      <p id="login-error" class="field-error" hidden></p>
+    </div>
+  </div>
+
+  <div id="dashboard-view" class="dashboard" hidden>
+    <header class="dash-header">
+      <p class="dash-title">Admin</p>
+      <button type="button" id="logout-btn" class="btn-ghost">Log out</button>
+    </header>
+
+    <section class="panel">
+      <h2 class="panel-title">Categories</h2>
+      <form id="category-form" class="inline-form">
+        <input id="category-name" class="field-input" type="text" placeholder="New category name" required>
+        <button type="submit" class="btn-primary">Add</button>
+      </form>
+      <ul id="category-list" class="plain-list"></ul>
+      <p id="category-empty" class="empty-state" hidden>
+        <span class="empty-title">No categories yet</span>
+        <span class="empty-body">Add one above to start organizing documents.</span>
+      </p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Upload document</h2>
+      <form id="upload-form" class="inline-form">
+        <input id="upload-file" class="field-input" type="file" accept=".md,.markdown" required>
+        <select id="upload-category" class="field-input"></select>
+        <button type="submit" class="btn-primary">Upload</button>
+      </form>
+      <p class="hint">New uploads start as drafts — publish them below once they're ready to answer questions.</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Website sync</h2>
+      <form id="sync-source-form" class="inline-form">
+        <input id="sync-source-url" class="field-input" type="url" placeholder="https://example.com/help/billing" required>
+        <button type="submit" class="btn-primary">Add URL</button>
+      </form>
+      <ul id="sync-source-list" class="plain-list"></ul>
+      <p id="sync-source-empty" class="empty-state" hidden>
+        <span class="empty-title">No sync sources yet</span>
+        <span class="empty-body">Add a URL above to keep a page synced into your knowledge base.</span>
+      </p>
+      <button type="button" id="sync-now-btn" class="btn-ghost">Sync now</button>
+      <p id="sync-now-status" class="hint" hidden></p>
+      <p class="hint">Synced pages start as drafts too — publish them below once they're ready. Sync is manual only; nothing runs automatically.</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Duplicate content review</h2>
+      <button type="button" id="scan-duplicates-btn" class="btn-ghost">Scan for duplicates</button>
+      <p id="scan-duplicates-status" class="hint" hidden></p>
+      <ul id="duplicate-flag-list" class="plain-list"></ul>
+      <p id="duplicate-flag-empty" class="empty-state" hidden>
+        <span class="empty-title">No duplicates flagged</span>
+        <span class="empty-body">Run a scan above to check for near-duplicate titles and headings.</span>
+      </p>
+      <p class="hint">Compares document titles and section headings for near-duplicate text. Scanning is manual only.</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Agent Configuration</h2>
+      <p class="hint">Name and tone/personality merged into every reply's system prompt.</p>
+      <div class="inline-form">
+        <input class="field-input" id="agent-name-input" placeholder="Agent name (e.g. Ava)" />
+      </div>
+      <textarea
+        id="agent-tone-input"
+        class="field-input"
+        rows="3"
+        style="width: 100%; margin-bottom: 8px; resize: vertical;"
+        placeholder="Tone/personality (e.g. warm and concise, avoids jargon, upbeat)"
+      ></textarea>
+
+      <label for="confidence-threshold-input" style="display: block; margin-bottom: 4px;">
+        Retrieval confidence threshold: <strong id="confidence-threshold-value">0.75</strong>
+      </label>
+      <input
+        type="range"
+        id="confidence-threshold-input"
+        min="0"
+        max="1"
+        step="0.01"
+        value="0.75"
+        style="width: 100%; margin-bottom: 4px;"
+      />
+      <p class="hint" style="margin-bottom: 8px;">
+        How closely a question must match the knowledge base before the assistant
+        will answer from it. Lower = answers more often, higher risk of using a
+        weak match. Higher = escalates/declines more often, safer but more "I
+        don't know" replies.
+      </p>
+
+      <button id="agent-config-save" class="btn-ghost">Save</button>
+      <span id="agent-config-status" class="hint"></span>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Audit Log</h2>
+      <p class="hint">Uploads, edits, deletes, and admin logins for the last 30 days.</p>
+      <ul id="audit-log-list" class="plain-list"></ul>
+      <p id="audit-log-empty" class="empty-state" hidden>
+        <span class="empty-title">No recent activity</span>
+        <span class="empty-body">Uploads, edits, deletes, and logins will show up here.</span>
+      </p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Analytics</h2>
+      <div class="analytics-controls">
+        <label class="hint" for="analytics-range">Range:</label>
+        <select id="analytics-range" class="field-input">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+        <a id="analytics-export-btn" class="btn-ghost" href="#" download>Download CSV</a>
+      </div>
+
+      <div class="stat-grid" id="analytics-stats"></div>
+
+      <h3 class="panel-subtitle">Answers per day</h3>
+      <div id="analytics-volume-chart" class="chart-wrap"></div>
+
+      <h3 class="panel-subtitle">Estimated LLM cost by model</h3>
+      <div id="analytics-cost-chart" class="chart-wrap"></div>
+
+      <h3 class="panel-subtitle">Flagged questions</h3>
+      <ul id="analytics-flagged-list" class="plain-list"></ul>
+      <p id="analytics-flagged-empty" class="empty-state" hidden>
+        <span class="empty-title">Nothing flagged</span>
+        <span class="empty-body">Escalated or low-confidence answers in this range will show up here.</span>
+      </p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Documents</h2>
+      <table id="document-table" class="data-table">
+        <thead>
+          <tr><th>Title</th><th>Status</th><th>Review state</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="document-empty" class="empty-state" hidden>
+        <span class="empty-title">No documents yet</span>
+        <span class="empty-body">Upload a Markdown file above to build your knowledge base.</span>
+      </p>
+    </section>
+  </div>
+
+  <script>window.TENANT_SLUG = {{ tenant_slug | tojson }};</script>
+  <script src="/static/js/admin.js"></script>
 </body>
 </html>

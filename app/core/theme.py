@@ -30,10 +30,17 @@ _HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 DEFAULT_THEME = {
     "display_name": "Support",
     "agent_name": "Assistant",
+    "tone": None,  # Phase 8 — 3.1/3.2: no forced default — None means no tone instruction added
     "logo_url": None,
     "accent": "#0e7c66",
     "accent_ink": "#0b5f4f",
     "accent_soft": "#dcefe9",
+    # Phase 9 — 1.3: cosine-similarity floor below which retrieved
+    # context is treated as "no real match" rather than fed to the
+    # LLM as if it were relevant. Calibrate per-tenant from
+    # message_feedback vs citation.similarity (see admin panel);
+    # 0.75 is a reasonable starting default, not a tuned constant.
+    "retrieval_confidence_threshold": 0.75,
 }
 
 # Keep white button/bubble text readable and the color recognizably a
@@ -88,7 +95,9 @@ def resolve_theme(tenant_id: int) -> dict:
     Returns a dict ready to inject into the chat template."""
     with get_cursor() as cur:
         cur.execute(
-            "SELECT display_name, agent_name, logo_url, accent_hex FROM tenant_branding WHERE tenant_id = %s",
+            """SELECT display_name, agent_name, logo_url, accent_hex, tone,
+                      retrieval_confidence_threshold
+               FROM tenant_branding WHERE tenant_id = %s""",
             (tenant_id,),
         )
         row = cur.fetchone()
@@ -104,6 +113,10 @@ def resolve_theme(tenant_id: int) -> dict:
             theme["logo_url"] = row["logo_url"]
         if row["accent_hex"] and is_valid_hex(row["accent_hex"]):
             theme.update(derive_palette(row["accent_hex"]))
+        if row["tone"]:
+            theme["tone"] = row["tone"]
+        if row["retrieval_confidence_threshold"] is not None:
+            theme["retrieval_confidence_threshold"] = float(row["retrieval_confidence_threshold"])
 
     theme["monogram"] = (theme["display_name"] or "S").strip()[:1].upper() or "S"
     return theme

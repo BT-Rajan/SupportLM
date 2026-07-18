@@ -3,7 +3,6 @@ fetched and folded into both retrieval and the answer call. Requires a
 reachable, migrated DB — skips cleanly if one isn't configured, same
 pattern as test_hybrid_search.py.
 """
-import json
 from unittest.mock import patch
 
 import pytest

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SupportLM Status</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 480px;
+      margin: 80px auto;
+      padding: 0 20px;
+      color: #1a1a1a;
+      background: #fafafa;
+    }
+    .card {
+      border: 1px solid #e2e2e2;
+      border-radius: 12px;
+      padding: 28px;
+      background: #fff;
+      text-align: center;
+    }
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    .dot.ok { background: #2e7d32; }
+    .dot.degraded { background: #c0392b; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-top: 1px solid #eee;
+      font-size: 14px;
+    }
+    .row:first-of-type { border-top: none; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1><span class="dot {{ health.status }}"></span>{{ "All systems operational" if health.status == "ok" else "Degraded" }}</h1>
+    <div class="row"><span>API</span><span>{{ health.status }}</span></div>
+    <div class="row"><span>Database</span><span>{{ health.database }}</span></div>
+  </div>
+</body>
+</html>

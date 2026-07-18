@@ -44,8 +44,16 @@ def post_chat(req: ChatRequest, request: Request, tenant_id: int = Depends(resol
     # provider round-trip.
     enforce_rate_limit(tenant_id, request)
     try:
-        agent_name = resolve_theme(tenant_id)["agent_name"]
-        result = ask(tenant_id, req.question, req.conversation_id, agent_name=agent_name, language=req.language)
+        theme = resolve_theme(tenant_id)
+        result = ask(
+            tenant_id,
+            req.question,
+            req.conversation_id,
+            agent_name=theme["agent_name"],
+            language=req.language,
+            tone=theme["tone"],
+            confidence_threshold=theme["retrieval_confidence_threshold"],
+        )
         # Soft warn only — never blocks the chat, per the owner's
         # decision that message limits warn rather than reject.
         result["limit_warning"] = message_limit_warning(tenant_id)

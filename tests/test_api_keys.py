@@ -158,7 +158,7 @@ def test_key_lifecycle_create_use_revoke():
 
 def test_key_rejected_on_wrong_tenant():
     tenant_a = _ensure_tenant("test-api-keys-tenant-a")
-    tenant_b = _ensure_tenant("test-api-keys-tenant-b")
+    _ensure_tenant("test-api-keys-tenant-b")
     admin_id = _ensure_admin("apikey-crosstenant@example.com")
     _link(tenant_a, admin_id, "admin")
 

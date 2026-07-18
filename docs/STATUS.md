@@ -5,10 +5,11 @@
 
 ## Current phase
 
-**Phase 8 (final phase) — Round 42 complete. 1.0 Audit Log (Round 41)
-and 2.0 Rate Limiting & Abuse Protection done.** 3.0 Agent/Bot
-Configuration UI is next. Phase 3 is fully complete (1.0/2.0/3.0).
-Phases 4, 5, 6, and 7 are complete. A concurrent session's standalone
+**Phase 8 (final phase) — Round 44 complete. 1.0 Audit Log, 2.0 Rate
+Limiting, 3.0 Agent/Bot Configuration UI, and 4.0 Health/Status Page
+all done.** 5.0 Webhooks — the last section of the last phase — is
+next. Phase 3 is fully complete (1.0/2.0/3.0). Phases 4, 5, 6, and 7
+are complete. A concurrent session's standalone
 data-integrity fix (prompt-version numbering race condition) landed
 alongside this phase's own work — see the note below for a migration-
 number collision at `025` this merge resolved (this session's `025_
@@ -1941,6 +1942,71 @@ number first).
 - **2.0 Rate Limiting & Abuse Protection is done (2.1-2.4).** Next: 3.0
   Agent/Bot Configuration UI.
 
+### Round 43 — completed 3.0 Agent/Bot Configuration UI (3.1-3.4)
+- **3.1 — schema**: `migrations/027_tenant_agent_tone.sql` adds
+  `tenant_branding.tone` (nullable, living alongside `agent_name` on
+  the same table rather than a new one — both are the same "voice"
+  concept Phase 1 already anchored there).
+- **3.2 — merge into system prompt**: `app/core/theme.py`'s
+  `resolve_theme()` now resolves `tone` alongside `agent_name`; a new
+  `_tone_instruction()` in `app/services/chat.py` appends it to the
+  system prompt right after the language instruction — same placement
+  pattern as Phase 5/6's own append-after-whichever-prompt-is-already-
+  in-play instructions.
+- **3.3 — endpoint**: `app/api/agent_config.py` — `GET`/`POST
+  /api/tenant/agent-config` (`admin`+). Explicitly supersedes
+  `scripts/set_tenant_branding.py` for `agent_name`/`tone` only — the
+  script stays valid for `display_name`/`logo_url`/`accent_hex`, out
+  of this phase's scope.
+- **3.4 — admin UI panel**: name input + tone textarea in
+  `admin.html`/`admin.js`. Second page-load `admin`+-only panel (after
+  1.4's audit log) — same graceful-403 handling for editor/viewer
+  roles, not a repeat of the `entries.forEach`-style crash risk.
+- `tests/test_agent_config.py` (7 tests): the `_tone_instruction()`
+  helper, `resolve_theme()` correctly includes/omits tone,
+  **`ask()` actually merges tone into the real system prompt sent to
+  the provider**, endpoint requires `admin`+, a full get/set roundtrip,
+  and a genuine end-to-end test (admin sets tone via the endpoint →
+  a real `/api/chat` call → the provider receives it) rather than
+  only testing the pieces in isolation.
+- Full suite run 3 consecutive times against the same DB with no
+  cleanup between runs: **211/211 passing every time**, plus a fresh-DB
+  rebuild (full `001`→`027` chain) also at 211/211. No regressions
+  anywhere in Phases 1-7 or Phase 8's 1.0/2.0.
+- **3.0 Agent/Bot Configuration UI is done (3.1-3.4).** Next: 4.0
+  Health/Status Page.
+
+### Round 44 — completed 4.0 Health/Status Page (4.1-4.2)
+- **4.1 — `/health` extended**: was a hardcoded `{"status": "ok"}` with
+  no actual check behind it; now runs a real `SELECT 1` against the
+  DB, returning `{"status": "ok", "database": "ok"}` normally or a
+  `503` with `{"status": "degraded", "database": "unreachable"}` if
+  the DB call raises — still fast, still suitable for automated
+  monitoring, just honest now.
+- **4.2 — `/status` page**: a new, public (no auth, no tenant
+  scoping — a status page's whole purpose is being checkable without
+  credentials) human-readable page, `templates/status.html`. Reuses
+  `health()`'s own logic rather than duplicating the DB check —
+  unwraps the `JSONResponse` body in the degraded case since `health()`
+  returns different shapes depending on outcome. Kept as a genuinely
+  separate endpoint from `/health` rather than one endpoint serving
+  both audiences (fast machine-readable monitors vs. human-readable
+  HTML).
+- `tests/test_health_status.py` (5 tests): healthy-path `/health` and
+  `/status` (skip cleanly if no DB configured), degraded-path
+  `/health` returns a real `503` when the DB call is mocked to fail,
+  **`/status` itself stays at `200` even when the DB is down** — the
+  entire point of a status page is being checkable independently of
+  the app's own data-layer state — and confirms no auth/tenant
+  scoping is required to view it.
+- Full suite run 3 consecutive times against the same DB with no
+  cleanup between runs: **216/216 passing every time**, plus a
+  fresh-DB rebuild (full `001`→`027` chain, unchanged this round — no
+  new schema needed) also at 216/216. No regressions anywhere in
+  Phases 1-7 or Phase 8's 1.0/2.0/3.0.
+- **4.0 Health/Status Page is done (4.1-4.2).** Next: 5.0 Webhooks —
+  the last section of the last phase.
+
 ## Open decisions / things to confirm during Phase 3
 
 **Phase 3 is fully complete as of Round 38** — both items previously
@@ -2056,13 +2122,10 @@ decision. Nothing left open in this phase.
 
 ## Next action
 
-**Migration renumbering applied**: per the heads-up left here from a
-concurrent session's rebase, `migrations/025_rate_limit_bucket.sql`
-has been renamed to **`026_rate_limit_bucket.sql`** — the other
-session's `025_prompt_version_seq.sql` (a standalone data-integrity
-fix, unrelated to this phase) claimed `025` first.
+## Next action
 
-Start Phase 8, Round 43: 3.1 — `migrations/027_tenant_agent_tone.sql`
-(`tenant_branding.tone`), then 3.2/3.3/3.4 — merge tone into the
-system prompt, `GET`/`POST /api/tenant/agent-config`, and the admin UI
-panel.
+Start Phase 8, Round 45 (last round of the last phase): 5.1 —
+`migrations/028_webhooks.sql` (`tenant_webhook_config` +
+`webhook_delivery_log`), then 5.2 — `deliver_webhook()` in a new
+`app/services/webhooks.py`, then 5.3/5.4 — `BackgroundTasks` dispatch
+from `post_chat`/`post_escalate` for the three trigger points.

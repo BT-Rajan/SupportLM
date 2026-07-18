@@ -105,7 +105,7 @@ def test_second_vote_on_same_message_rejected_with_409():
 
 
 def test_unknown_message_id_returns_404():
-    tenant_id = _ensure_tenant("test-fb-404")
+    _ensure_tenant("test-fb-404")
     client = _client()
 
     resp = client.post("/t/test-fb-404/api/chat/999999/feedback", json={"rating": "up"})
@@ -137,7 +137,7 @@ def test_cannot_rate_another_tenants_message():
     """Cross-tenant isolation: tenant B cannot submit feedback on
     tenant A's message_id through tenant B's own URL."""
     tenant_a = _ensure_tenant("test-fb-iso-a")
-    tenant_b = _ensure_tenant("test-fb-iso-b")
+    _ensure_tenant("test-fb-iso-b")
 
     client_a, message_id_a = _ask_and_get_message_id("test-fb-iso-a", tenant_a)
     client_b = _client()
