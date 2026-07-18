@@ -53,7 +53,37 @@ templates = Jinja2Templates(directory="templates")
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    """Phase 8 — 4.1: an honest liveness check now, not a hardcoded
+    constant. Still fast (a single SELECT 1) and still suitable for
+    automated uptime monitors."""
+    from app.db.pool import get_conn
+
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            cur.fetchone()
+            cur.close()
+        return {"status": "ok", "database": "ok"}
+    except Exception:
+        logger.exception("Health check: database unreachable")
+        return JSONResponse(status_code=503, content={"status": "degraded", "database": "unreachable"})
+
+
+@app.get("/status")
+def status_page(request: Request):
+    """Phase 8 — 4.2: a public, human-readable counterpart to
+    /health — no tenant scoping, no auth, since a status page's whole
+    purpose is being checkable without credentials. Separate from
+    /health rather than overloading one endpoint for both the
+    machine-readable/fast audience (uptime monitors) and the
+    human-readable one."""
+    health_data = health()
+    if isinstance(health_data, JSONResponse):
+        import json
+
+        health_data = json.loads(health_data.body)
+    return templates.TemplateResponse(request, "status.html", {"health": health_data})
 
 
 @app.get("/")

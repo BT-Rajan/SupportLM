@@ -5,10 +5,11 @@
 
 ## Current phase
 
-**Phase 8 (final phase) — Round 43 complete. 1.0 Audit Log, 2.0 Rate
-Limiting, and 3.0 Agent/Bot Configuration UI all done.** 4.0
-Health/Status Page is next. Phase 3 is fully complete (1.0/2.0/3.0).
-Phases 4, 5, 6, and 7 are complete. A concurrent session's standalone
+**Phase 8 (final phase) — Round 44 complete. 1.0 Audit Log, 2.0 Rate
+Limiting, 3.0 Agent/Bot Configuration UI, and 4.0 Health/Status Page
+all done.** 5.0 Webhooks — the last section of the last phase — is
+next. Phase 3 is fully complete (1.0/2.0/3.0). Phases 4, 5, 6, and 7
+are complete. A concurrent session's standalone
 data-integrity fix (prompt-version numbering race condition) landed
 alongside this phase's own work — see the note below for a migration-
 number collision at `025` this merge resolved (this session's `025_
@@ -1975,6 +1976,37 @@ number first).
 - **3.0 Agent/Bot Configuration UI is done (3.1-3.4).** Next: 4.0
   Health/Status Page.
 
+### Round 44 — completed 4.0 Health/Status Page (4.1-4.2)
+- **4.1 — `/health` extended**: was a hardcoded `{"status": "ok"}` with
+  no actual check behind it; now runs a real `SELECT 1` against the
+  DB, returning `{"status": "ok", "database": "ok"}` normally or a
+  `503` with `{"status": "degraded", "database": "unreachable"}` if
+  the DB call raises — still fast, still suitable for automated
+  monitoring, just honest now.
+- **4.2 — `/status` page**: a new, public (no auth, no tenant
+  scoping — a status page's whole purpose is being checkable without
+  credentials) human-readable page, `templates/status.html`. Reuses
+  `health()`'s own logic rather than duplicating the DB check —
+  unwraps the `JSONResponse` body in the degraded case since `health()`
+  returns different shapes depending on outcome. Kept as a genuinely
+  separate endpoint from `/health` rather than one endpoint serving
+  both audiences (fast machine-readable monitors vs. human-readable
+  HTML).
+- `tests/test_health_status.py` (5 tests): healthy-path `/health` and
+  `/status` (skip cleanly if no DB configured), degraded-path
+  `/health` returns a real `503` when the DB call is mocked to fail,
+  **`/status` itself stays at `200` even when the DB is down** — the
+  entire point of a status page is being checkable independently of
+  the app's own data-layer state — and confirms no auth/tenant
+  scoping is required to view it.
+- Full suite run 3 consecutive times against the same DB with no
+  cleanup between runs: **216/216 passing every time**, plus a
+  fresh-DB rebuild (full `001`→`027` chain, unchanged this round — no
+  new schema needed) also at 216/216. No regressions anywhere in
+  Phases 1-7 or Phase 8's 1.0/2.0/3.0.
+- **4.0 Health/Status Page is done (4.1-4.2).** Next: 5.0 Webhooks —
+  the last section of the last phase.
+
 ## Open decisions / things to confirm during Phase 3
 
 **Phase 3 is fully complete as of Round 38** — both items previously
@@ -2092,5 +2124,8 @@ decision. Nothing left open in this phase.
 
 ## Next action
 
-Start Phase 8, Round 44: 4.1 — extend `/health` to check real DB
-connectivity, then 4.2 — a new public `/status` HTML page.
+Start Phase 8, Round 45 (last round of the last phase): 5.1 —
+`migrations/028_webhooks.sql` (`tenant_webhook_config` +
+`webhook_delivery_log`), then 5.2 — `deliver_webhook()` in a new
+`app/services/webhooks.py`, then 5.3/5.4 — `BackgroundTasks` dispatch
+from `post_chat`/`post_escalate` for the three trigger points.
