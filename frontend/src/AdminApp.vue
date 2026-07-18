@@ -16,6 +16,7 @@
           <span class="admin-brand-slug">{{ tenantSlug }}</span>
         </div>
       </div>
+      <button type="button" class="btn-ghost" style="width:100%;margin-bottom:12px;" @click="logout">Log out</button>
       <nav class="admin-nav">
         <button
           v-for="s in sections"
@@ -26,10 +27,8 @@
           @click="section = s.id"
         >{{ s.label }}</button>
       </nav>
-      <div class="admin-sidebar-foot">
-        <button type="button" class="btn-ghost" style="width:100%;" @click="logout">Log out</button>
-      </div>
     </aside>
+
 
     <div class="admin-main">
       <header class="admin-topbar">
