@@ -100,7 +100,7 @@ async def upload_document(
     # success/failure — "an upload happened" is the auditable event.
     log_audit_event(tenant_id, admin_id, "upload", "document", document_id, detail=title, request=request)
 
-    background_tasks.add_task(ingest_document, document_id)
+    background_tasks.add_task(ingest_document, document_id, auto_publish=True)
     return DocumentOut(id=document_id, title=title, status="pending", review_state="draft")
 
 

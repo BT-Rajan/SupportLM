@@ -6,9 +6,19 @@ from app.services.chunking import chunk_markdown
 from app.core.config import settings
 
 
-def ingest_document(document_id: int) -> None:
+def ingest_document(document_id: int, auto_publish: bool = False) -> None:
     """Chunk a document's markdown, embed each chunk, store both. Marks
     the document 'ready' on success or 'error' with a message on failure.
+
+    auto_publish: when True, also sets review_state='published' on
+    success, so the document is immediately visible to chat search
+    without a manual review step. Defaults to False because this
+    function is shared with app/services/website_sync.py, which
+    deliberately resets review_state to 'draft' when a synced page's
+    content changes and needs that re-review gate to hold — passing
+    True from ingest_document's caller there would silently republish
+    changed live content with no review. Only the direct-upload path
+    (app/api/documents.py's upload endpoint) passes True.
 
     tenant_id isn't passed in — it's read from the document row itself
     (documents already have it, set at creation in app/api/documents.py)
@@ -53,10 +63,16 @@ def ingest_document(document_id: int) -> None:
                     (tenant_id, chunk_id, settings.embedding_model_name, len(vector), json.dumps(vector)),
                 )
 
-            cur.execute(
-                "UPDATE document SET status = 'ready', processed_at = NOW() WHERE id = %s",
-                (document_id,),
-            )
+            if auto_publish:
+                cur.execute(
+                    "UPDATE document SET status = 'ready', review_state = 'published', processed_at = NOW() WHERE id = %s",
+                    (document_id,),
+                )
+            else:
+                cur.execute(
+                    "UPDATE document SET status = 'ready', processed_at = NOW() WHERE id = %s",
+                    (document_id,),
+                )
             conn.commit()
         except Exception as exc:
             conn.rollback()  # discard any partial chunk/embedding inserts from this attempt
