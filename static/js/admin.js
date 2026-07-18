@@ -304,12 +304,20 @@
   async function loadAgentConfig() {
     const res = await api("/api/tenant/agent-config");
     if (!res.ok) {
-      // admin+ only — same graceful degradation as the audit log panel.
+      // Previously always said "Admin access required" regardless of
+      // the actual cause (401/403/500/etc) — that masks real bugs
+      // behind a plausible-sounding permissions message. Show what
+      // actually came back instead.
       agentNameInput.disabled = true;
       agentToneInput.disabled = true;
       agentThresholdInput.disabled = true;
       agentSaveBtn.disabled = true;
-      agentStatus.textContent = "Admin access required.";
+      let detail = `HTTP ${res.status}`;
+      try {
+        const body = await res.json();
+        if (body && body.detail) detail = (typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail)) + ` (HTTP ${res.status})`;
+      } catch (_) { /* body wasn't JSON — keep the generic status */ }
+      agentStatus.textContent = detail;
       return;
     }
     agentNameInput.disabled = false;
