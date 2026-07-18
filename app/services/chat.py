@@ -32,9 +32,10 @@ _LANGUAGE_NAMES = {
 # no active_prompt_version_id set. get_active_prompt() returns the
 # tenant's configured prompt text when one exists.
 _SYSTEM_PROMPT = (
-    "You are {agent_name}, a support assistant. Answer the user's question using "
-    "ONLY the context provided below. If the context doesn't contain the answer, "
-    "say you don't know rather than guessing.\n\nContext:\n{context}"
+    "You are {agent_name}, a support assistant. Answer the user's question "
+    "directly and naturally using ONLY the context below — don't mention that "
+    "you were given context. If the context doesn't contain the answer, say "
+    "you don't know rather than guessing.\n\nContext:\n{context}"
 )
 
 
@@ -90,6 +91,21 @@ def _tone_instruction(tone: str | None) -> str:
     if not tone:
         return ""
     return f"\n\nAdopt this tone and personality when responding: {tone}"
+
+
+# Phase 9 — 3.1: stops the model prefacing every answer with a
+# meta-reference to the fact it was given context ("Based on the
+# context...", "According to the provided information..."). Appended
+# unconditionally, same placement pattern as tone/language, so it
+# applies even to a tenant's custom active prompt — no tenant prompt
+# author should have to know to phrase this themselves.
+_NO_META_REFERENCE_INSTRUCTION = (
+    "\n\nAnswer directly and naturally, the way a knowledgeable support "
+    "agent would. Never preface an answer with phrases like \"Based on the "
+    "context\", \"According to the provided information\", \"From what I can "
+    "see\", or any other reference to the fact that you were given context — "
+    "just answer the question."
+)
 
 
 # Phase 6 — 1.1: the literal marker the model is instructed to append
@@ -249,6 +265,7 @@ def ask(
     # selection for this to work.
     system_prompt += _language_instruction(resolved_language)
     system_prompt += _tone_instruction(tone)
+    system_prompt += _NO_META_REFERENCE_INSTRUCTION
     # Phase 6 — 1.1 / Phase 9 — 1.4: appended last — marker detection
     # only looks at the very end of the answer, so it needs to be the
     # final instruction the model sees. Which instruction depends on
