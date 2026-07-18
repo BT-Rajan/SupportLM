@@ -36,6 +36,7 @@
     loadDocuments();
     loadAnalytics();
     loadAuditLog();
+    loadAgentConfig();
   }
 
   // --- Login ---
@@ -287,6 +288,36 @@
     fileInput.value = "";
     loadDocuments();
   });
+
+  // --- Agent/Bot Configuration (Phase 8 — 3.4) ---
+  async function loadAgentConfig() {
+    const nameInput = document.getElementById("agent-name-input");
+    const toneInput = document.getElementById("agent-tone-input");
+    const saveBtn = document.getElementById("agent-config-save");
+    const status = document.getElementById("agent-config-status");
+
+    const res = await api("/api/tenant/agent-config");
+    if (!res.ok) {
+      // admin+ only — same graceful degradation as the audit log panel.
+      nameInput.disabled = true;
+      toneInput.disabled = true;
+      saveBtn.disabled = true;
+      status.textContent = "Admin access required.";
+      return;
+    }
+    const config = await res.json();
+    nameInput.value = config.agent_name || "";
+    toneInput.value = config.tone || "";
+
+    saveBtn.addEventListener("click", async () => {
+      status.textContent = "Saving…";
+      const saveRes = await api("/api/tenant/agent-config", {
+        method: "POST",
+        body: JSON.stringify({ agent_name: nameInput.value.trim() || null, tone: toneInput.value.trim() || null }),
+      });
+      status.textContent = saveRes.ok ? "Saved." : "Could not save.";
+    });
+  }
 
   // --- Audit Log (Phase 8 — 1.4) ---
   async function loadAuditLog() {

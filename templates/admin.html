@@ -83,6 +83,23 @@
     </section>
 
     <section class="panel">
+      <h2 class="panel-title">Agent Configuration</h2>
+      <p class="hint">Name and tone/personality merged into every reply's system prompt.</p>
+      <div class="inline-form">
+        <input class="field-input" id="agent-name-input" placeholder="Agent name (e.g. Ava)" />
+      </div>
+      <textarea
+        id="agent-tone-input"
+        class="field-input"
+        rows="3"
+        style="width: 100%; margin-bottom: 8px; resize: vertical;"
+        placeholder="Tone/personality (e.g. warm and concise, avoids jargon, upbeat)"
+      ></textarea>
+      <button id="agent-config-save" class="btn-ghost">Save</button>
+      <span id="agent-config-status" class="hint"></span>
+    </section>
+
+    <section class="panel">
       <h2 class="panel-title">Audit Log</h2>
       <p class="hint">Uploads, edits, deletes, and admin logins for the last 30 days.</p>
       <ul id="audit-log-list" class="plain-list"></ul>

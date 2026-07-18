@@ -82,6 +82,16 @@ def _language_instruction(language_code: str | None) -> str:
     )
 
 
+def _tone_instruction(tone: str | None) -> str:
+    """Phase 8 — 3.2: appended after whichever prompt is already in
+    play (default or tenant-custom), same placement pattern as the
+    language instruction — a tenant's custom Phase 4 prompt shouldn't
+    need to know about tone configuration for this to work."""
+    if not tone:
+        return ""
+    return f"\n\nAdopt this tone and personality when responding: {tone}"
+
+
 # Phase 6 — 1.1: the literal marker the model is instructed to append
 # when (and only when) it cannot answer from the provided context. A
 # text-marker convention, not structured/function-calling output —
@@ -138,6 +148,7 @@ def ask(
     conversation_id: str | None,
     agent_name: str = "Assistant",
     language: str | None = None,
+    tone: str | None = None,
 ) -> dict:
     t0 = time.perf_counter()
 
@@ -195,6 +206,7 @@ def ask(
     # a tenant's custom prompt shouldn't need to know about language
     # selection for this to work.
     system_prompt += _language_instruction(resolved_language)
+    system_prompt += _tone_instruction(tone)
     # Phase 6 — 1.1: appended last — this instruction's marker
     # detection in 1.2 only looks at the very end of the answer, so it
     # needs to be the final instruction the model sees, after language
