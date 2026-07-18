@@ -1,50 +1,75 @@
 /* ---- Design tokens ------------------------------------------------------
-   Enterprise/luxury refresh. --accent / --accent-ink / --accent-soft keep
-   the exact names templates/chat.html injects per-tenant (see the inline
-   <style> block sourced from app/core/theme.py's derive_palette()) — that
-   seam is untouched. Everything else — the warmer neutral palette, the
-   serif display face, elevation, and motion — is new. */
+   Premium enterprise refresh (v3). --accent / --accent-ink / --accent-soft
+   keep the exact names templates/chat.html injects per-tenant (see the
+   inline <style> block sourced from app/core/theme.py's derive_palette())
+   — that seam is untouched. Everything else — the cool neutral palette,
+   Inter-only type, 8px-aligned radii, and flat elevation — is new. Dark
+   mode lives under [data-theme="dark"] on <html>; the toggle that sets
+   that attribute is wired up in a later pass. */
 :root {
-  --ink: #17181c;
-  --muted: #6b6f76;
-  --muted-soft: #9a9da3;
-  --bg: #f4f2ee;
+  --ink: #111827;
+  --muted: #6b7280;
+  --muted-soft: #9ca3af;
+  --bg: #fafafa;
   --surface: #ffffff;
-  --surface-alt: #f1efe9;
-  --border: #e5e1d8;
-  --border-strong: #d7d1c2;
+  --surface-alt: #f5f6f8;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
 
-  --accent: #0e7c66;
-  --accent-ink: #0b5f4f;
-  --accent-soft: #dcefe9;
+  --accent: #2563eb;
+  --accent-ink: #1d4ed8;
+  --accent-soft: #eaf1fd;
 
-  --live: #22c55e;
-  --danger: #9c2b25;
+  --live: #10b981;
+  --danger: #ef4444;
   --danger-bg: #fdecec;
-  --danger-border: #f3c6c4;
+  --danger-border: #f7c9c9;
 
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --font-body: "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+  --font-display: "Inter", "Geist", "SF Pro Text", system-ui, -apple-system, sans-serif;
+  --font-body: "Inter", "Geist", "SF Pro Text", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
 
-  --radius: 14px;
-  --radius-lg: 22px;
-  --radius-sm: 10px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-sm: 8px;
+  --radius-xl: 20px;
 
-  --shadow-elevated: 0 1px 1px rgba(23, 24, 28, 0.03), 0 24px 56px -28px rgba(23, 24, 28, 0.32);
-  --shadow-card: 0 1px 2px rgba(23, 24, 28, 0.05);
-  --shadow-soft: 0 6px 18px -10px rgba(23, 24, 28, 0.22);
+  --shadow-elevated: 0 8px 24px rgba(17, 24, 39, 0.10);
+  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.04);
+  --shadow-soft: 0 2px 8px rgba(17, 24, 39, 0.06);
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="dark"] {
+  --ink: #f3f4f6;
+  --muted: #a1a8b3;
+  --muted-soft: #7d8590;
+  --bg: #0f1115;
+  --surface: #171c26;
+  --surface-alt: #1f2633;
+  --border: #293241;
+  --border-strong: #344055;
+
+  --accent: #4f8bff;
+  --accent-ink: #79a7ff;
+  --accent-soft: #1c2c4d;
+
+  --live: #34d399;
+  --danger: #f87171;
+  --danger-bg: #3a1e20;
+  --danger-border: #5c2a2d;
+
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.44);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.32);
 }
 
 * { box-sizing: border-box; }
 
 body {
   font-family: var(--font-body);
-  background:
-    radial-gradient(1200px 520px at 50% -12%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%),
-    var(--bg);
+  background: var(--bg);
   color: var(--ink);
   margin: 0;
   min-height: 100vh;
@@ -79,7 +104,7 @@ body {
   justify-content: space-between;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface-alt) 55%, var(--surface)) 100%);
+  background: var(--surface);
   position: relative;
   z-index: 2;
 }
@@ -90,8 +115,7 @@ body {
   width: 38px;
   height: 38px;
   border-radius: 11px;
-  background: linear-gradient(155deg, var(--accent) 0%, var(--accent-ink) 100%);
-  box-shadow: 0 3px 10px -4px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  background: var(--accent);
   color: #fff;
   font-family: var(--font-display);
   font-weight: 600;
@@ -369,7 +393,7 @@ body {
 }
 
 .msg-user {
-  background: linear-gradient(155deg, var(--accent) 0%, var(--accent-ink) 100%);
+  background: var(--accent);
   color: #fff;
   border-bottom-right-radius: 4px;
   box-shadow: var(--shadow-card);
@@ -565,17 +589,17 @@ body {
   height: 40px;
   border-radius: 12px;
   border: none;
-  background: linear-gradient(155deg, var(--accent) 0%, var(--accent-ink) 100%);
+  background: var(--accent);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px -3px color-mix(in srgb, var(--accent) 65%, transparent);
-  transition: filter 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+  box-shadow: var(--shadow-card);
+  transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
 
-.composer-send:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-1px); box-shadow: 0 4px 12px -3px color-mix(in srgb, var(--accent) 70%, transparent); }
+.composer-send:hover:not(:disabled) { background: var(--accent-ink); transform: translateY(-1px); box-shadow: var(--shadow-soft); }
 .composer-send:active:not(:disabled) { transform: scale(0.94); }
 .composer-send:disabled { background: var(--border); box-shadow: none; cursor: not-allowed; }
 

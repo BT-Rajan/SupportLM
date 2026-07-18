@@ -1,45 +1,74 @@
 /* ---- Design tokens ----------------------------------------------------
-   Same enterprise/luxury palette as static/css/chat.css (kept as its own
+   Same premium enterprise palette as static/css/chat.css (kept as its own
    copy rather than a shared file — docs/DESIGN_SYSTEM.md's "share a
    tokens.css once there are 3+ stylesheets" trigger still hasn't fired
    with just these two). The admin console stays on this default theme
    deliberately — no per-tenant accent injection here, it's an internal
    tool, not customer-facing (see docs/DESIGN_SYSTEM.md's branding
-   section for why that's a deliberate boundary, not an oversight). */
+   section for why that's a deliberate boundary, not an oversight). Dark
+   mode lives under [data-theme="dark"] on <html>; the toggle that sets
+   that attribute is wired up in a later pass. */
 :root {
-  --ink: #17181c;
-  --muted: #6b6f76;
-  --muted-soft: #9a9da3;
-  --bg: #f4f2ee;
+  --ink: #111827;
+  --muted: #6b7280;
+  --muted-soft: #9ca3af;
+  --bg: #fafafa;
   --surface: #ffffff;
-  --surface-alt: #f1efe9;
-  --border: #e5e1d8;
-  --border-strong: #d7d1c2;
+  --surface-alt: #f5f6f8;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
 
-  --accent: #0e7c66;
-  --accent-ink: #0b5f4f;
-  --accent-soft: #dcefe9;
+  --accent: #2563eb;
+  --accent-ink: #1d4ed8;
+  --accent-soft: #eaf1fd;
 
-  --danger: #9c2b25;
+  --danger: #ef4444;
   --danger-bg: #fdecec;
-  --danger-border: #f3c9c6;
-  --warning: #8a5a12;
-  --warning-bg: #fbf0dc;
-  --warning-border: #eeddb2;
+  --danger-border: #f7c9c9;
+  --warning: #f59e0b;
+  --warning-bg: #fdf3df;
+  --warning-border: #f2ddab;
 
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --font-body: "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+  --font-display: "Inter", "Geist", "SF Pro Text", system-ui, -apple-system, sans-serif;
+  --font-body: "Inter", "Geist", "SF Pro Text", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
 
-  --radius: 14px;
-  --radius-lg: 20px;
-  --radius-sm: 10px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-sm: 8px;
+  --radius-xl: 20px;
 
-  --shadow-elevated: 0 1px 1px rgba(23, 24, 28, 0.03), 0 24px 56px -28px rgba(23, 24, 28, 0.32);
-  --shadow-card: 0 1px 2px rgba(23, 24, 28, 0.05);
-  --shadow-soft: 0 6px 18px -10px rgba(23, 24, 28, 0.22);
+  --shadow-elevated: 0 8px 24px rgba(17, 24, 39, 0.10);
+  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.04);
+  --shadow-soft: 0 2px 8px rgba(17, 24, 39, 0.06);
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="dark"] {
+  --ink: #f3f4f6;
+  --muted: #a1a8b3;
+  --muted-soft: #7d8590;
+  --bg: #0f1115;
+  --surface: #171c26;
+  --surface-alt: #1f2633;
+  --border: #293241;
+  --border-strong: #344055;
+
+  --accent: #4f8bff;
+  --accent-ink: #79a7ff;
+  --accent-soft: #1c2c4d;
+
+  --danger: #f87171;
+  --danger-bg: #3a1e20;
+  --danger-border: #5c2a2d;
+  --warning: #fbbf24;
+  --warning-bg: #3a2f14;
+  --warning-border: #5c4a1e;
+
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.44);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.32);
 }
 
 * { box-sizing: border-box; }
@@ -61,9 +90,7 @@ h2 { margin: 0; }
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background:
-    radial-gradient(1000px 480px at 50% -10%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%),
-    var(--bg);
+  background: var(--bg);
   animation: fadeIn 0.4s var(--ease-out) both;
 }
 
@@ -94,11 +121,9 @@ h2 { margin: 0; }
   height: 44px;
   margin: 0 auto 16px;
   border-radius: 12px;
-  background: linear-gradient(155deg, var(--accent) 0%, var(--accent-ink) 100%);
-  box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--accent) 65%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  background: var(--accent);
   color: #fff;
   font-family: var(--font-display);
-  font-style: italic;
   font-weight: 600;
   font-size: 20px;
   display: flex;
@@ -158,11 +183,11 @@ h2 { margin: 0; }
 }
 .btn-primary {
   color: #fff;
-  background: linear-gradient(155deg, var(--accent) 0%, var(--accent-ink) 100%);
+  background: var(--accent);
   border: 1px solid transparent;
-  box-shadow: 0 2px 8px -3px color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: var(--shadow-card);
 }
-.btn-primary:hover:not(:disabled) { filter: brightness(1.05); transform: translateY(-1px); box-shadow: 0 4px 12px -3px color-mix(in srgb, var(--accent) 60%, transparent); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-ink); transform: translateY(-1px); box-shadow: var(--shadow-soft); }
 .btn-ghost { background: var(--surface); color: var(--ink); border: 1px solid var(--border); }
 .btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-ink); }
 .btn-danger { background: var(--surface); color: var(--danger); border: 1px solid var(--danger-border); }
@@ -202,11 +227,9 @@ h2 { margin: 0; }
   height: 34px;
   flex-shrink: 0;
   border-radius: 10px;
-  background: linear-gradient(155deg, var(--accent) 0%, var(--accent-ink) 100%);
-  box-shadow: 0 3px 10px -4px color-mix(in srgb, var(--accent) 60%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  background: var(--accent);
   color: #fff;
   font-family: var(--font-display);
-  font-style: italic;
   font-weight: 600;
   font-size: 16px;
   display: flex;
@@ -260,7 +283,7 @@ h2 { margin: 0; }
   justify-content: space-between;
   padding: 22px 32px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface-alt) 45%, var(--surface)) 100%);
+  background: var(--surface);
   position: sticky;
   top: 0;
   z-index: 5;

@@ -8,35 +8,54 @@ team with one set of rules, not a collection of per-page experiments.
 
 ## Tokens (source of truth: `static/css/chat.css`)
 
+v3 — premium enterprise refresh (previously an emerald/Fraunces
+"luxury" palette; before that, an unfollowed system-ui/indigo baseline
+— see the Admin console section below). Flat elevation, no heavy
+gradients, cool neutral grays, Inter-only type. Dark mode lives under
+`[data-theme="dark"]` on `<html>` (values below); the toggle that sets
+that attribute is wired up in a later pass.
+
 ```css
---ink: #16211d;          /* primary text */
---muted: #64756e;        /* secondary text, timestamps, helper copy */
---bg: #eaeeec;           /* page background */
+--ink: #111827;          /* primary text */
+--muted: #6b7280;        /* secondary text, timestamps, helper copy */
+--muted-soft: #9ca3af;   /* tertiary/disabled text */
+--bg: #fafafa;           /* page background */
 --surface: #ffffff;      /* card/panel background */
---surface-alt: #f2f5f3;  /* recessed areas: message thread, inputs */
---border: #dbe3de;
+--surface-alt: #f5f6f8;  /* recessed areas: message thread, inputs */
+--border: #e5e7eb;
+--border-strong: #d1d5db;
 
---accent: #0e7c66;       /* primary actions, links, brand mark */
---accent-ink: #0b5f4f;   /* hover/active state of accent */
---accent-soft: #dcefe9;  /* tinted backgrounds: user bubbles, tags */
+--accent: #2563eb;       /* primary actions, links, brand mark */
+--accent-ink: #1d4ed8;   /* hover/active state of accent */
+--accent-soft: #eaf1fd;  /* tinted backgrounds: user bubbles, tags */
 
---live: #22c55e;         /* status-online indicator only */
+--live: #10b981;         /* status-online indicator only */
 
---font-display: "Space Grotesk";  /* brand name, page titles, section headers */
---font-body: "Inter";             /* body copy, form inputs, buttons */
---font-mono: "IBM Plex Mono";     /* timestamps, IDs, status text, SR numbers */
+--font-display: "Inter";       /* brand name, page titles, section headers */
+--font-body: "Inter";          /* body copy, form inputs, buttons — same face as display now */
+--font-mono: "JetBrains Mono"; /* timestamps, IDs, status text, SR numbers */
 
---radius: 14px;          /* default corner radius for cards/bubbles */
+--radius-sm: 8px;        /* inputs, small controls */
+--radius: 12px;          /* default corner radius for cards/bubbles */
+--radius-lg: 16px;       /* larger panels */
+--radius-xl: 20px;       /* dialogs */
 ```
 
 Semantic colors for state (add here when first needed, don't invent
 inline hex values in a component file):
-- Success: `--live` (#22c55e)
-- Error/danger: `#9c2b25` text on `#fdecec` background, `#f3c6c4` border
-  (already used for chat error bubbles — reuse exactly, don't create a
-  second red)
-- Warning: to be added in Phase 3 (draft/review states) — pick once,
-  document here, reuse everywhere.
+- Success: `--live` (#10b981)
+- Error/danger: `--danger` (#ef4444) text on `--danger-bg` (#fdecec)
+  background, `--danger-border` (#f7c9c9) border (already used for
+  chat error bubbles — reuse exactly, don't create a second red)
+- Warning: `--warning` (#f59e0b) on `--warning-bg` (#fdf3df),
+  `--warning-border` (#f2ddab) — used by admin review-state badges.
+
+Gradients are deliberately gone from every surface (brand marks,
+buttons, the composer send control, the topbar/header) — flat fills
+only, per the flat-elevation design principle. Don't reintroduce a
+`linear-gradient`/`radial-gradient` on a new component without a
+strong reason; if elevation is needed, reach for `--shadow-card` /
+`--shadow-soft` / `--shadow-elevated` instead.
 
 ## Component patterns established so far
 
@@ -111,7 +130,7 @@ is NOT a second design system — it's one controlled seam into this one.
   same treatment as today's "S". Never leave the brand-mark slot empty.
 - **Fallback is exact, not inferred**: a tenant with no branding row —
   or no value for one specific field — gets exactly today's default
-  for that field (`Support` / `Assistant` / emerald `#0e7c66` /
+  for that field (`Support` / `Assistant` / blue `#2563eb` /
   monogram), not a value auto-derived from the tenant's internal org
   name (`tenant.name`). That name may not even be customer-facing copy
   (e.g. "Acme Corp LLC (Trial)"). Branding is opt-in per field via
@@ -125,9 +144,8 @@ is NOT a second design system — it's one controlled seam into this one.
 
 ## Rules for new screens (admin dashboard, analytics, agent config, etc.)
 
-1. Pull in the same Google Fonts stack (Space Grotesk / Inter / IBM Plex
-   Mono) — don't default to system-ui for a new screen just because it's
-   "internal."
+1. Pull in the same Google Fonts stack (Inter + JetBrains Mono) — don't
+   default to system-ui for a new screen just because it's "internal."
 2. Reuse the token variables directly; don't hardcode hex values in a new
    CSS file. If a new page needs a new file, `:root` should still resolve
    to the same values (share a `tokens.css` once there are 3+ stylesheets

@@ -32,9 +32,9 @@ DEFAULT_THEME = {
     "agent_name": "Assistant",
     "tone": None,  # Phase 8 — 3.1/3.2: no forced default — None means no tone instruction added
     "logo_url": None,
-    "accent": "#0e7c66",
-    "accent_ink": "#0b5f4f",
-    "accent_soft": "#dcefe9",
+    "accent": "#2563eb",
+    "accent_ink": "#1d4ed8",
+    "accent_soft": "#eaf1fd",
     # Phase 9 — 1.3: cosine-similarity floor below which retrieved
     # context is treated as "no real match" rather than fed to the
     # LLM as if it were relevant. Calibrate per-tenant from
