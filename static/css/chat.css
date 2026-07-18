@@ -557,6 +557,8 @@ body {
 }
 
 /* ---- Composer ---------------------------------------------------------- */
+.console-footer { display: flex; flex-direction: column; }
+
 .composer {
   display: flex;
   align-items: flex-end;
