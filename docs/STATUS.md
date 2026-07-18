@@ -2120,7 +2120,35 @@ decision. Nothing left open in this phase.
   originally-listed ones were already fixed; this round found and
   fixed one more in the same family that hadn't been surfaced before.
 
-## Next action
+### Round — Admin console: switched to the Vue rewrite, closed the agent-config gap
+- The Vue admin console under `frontend/src/admin/` (built via
+  `npm run build:admin` to `static/dist/admin-widget.{js,css}`) had
+  been sitting unwired — `templates/admin.html` was still serving the
+  original vanilla-JS console (`static/js/admin.js`), so the Vue build
+  was dead code no visitor ever loaded.
+- That vanilla console covered every admin API except one; the Vue
+  rewrite covered every admin API except a *different* one — it never
+  got a panel for `GET`/`POST /api/tenant/agent-config` (agent name,
+  tone, retrieval confidence threshold), even though `agent_config.py`
+  and its 7-test suite (`tests/test_agent_config.py`) were already
+  live from Phase 8 Round 43.
+- Added `frontend/src/admin/components/settings/AgentConfigPanel.vue`
+  — name input, tone textarea, confidence slider (0–1, default 0.75
+  shown when unset), matching the old console's disable-and-show-
+  real-error behavior for non-admin sessions instead of a generic
+  "admin access required" — wired into `SettingsView.vue` above the
+  LLM provider panel.
+- `templates/admin.html` rewritten to a thin Vue mount shell
+  (`#admin-app` + `window.__SUPPORTLM_ADMIN_CONFIG__` + the built
+  bundle), same pattern the chat widget's template already uses for
+  its own Vue entry. `static/js/admin.js`, `static/js/admin-nav.js`,
+  and `static/css/admin.css` removed — nothing else referenced them.
+- Every admin-facing API route now has exactly one console, and that
+  console uses all of them: agent-config, LLM provider, prompt
+  versions, support inbox config, API keys, categories, documents
+  (upload/reindex/review-state/delete), sync sources, duplicate
+  flags, analytics (dashboard/flagged-questions/CSV export), and the
+  audit log.
 
 ## Next action
 
