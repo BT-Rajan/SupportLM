@@ -4,21 +4,42 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SupportLM Status</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  {# Same token values as frontend/src/styles/tokens.css / static/dist —
+     this page has no build step, so the values are inlined rather than
+     imported, but they must stay in sync with that file (see
+     docs/DESIGN_SYSTEM.md rule 2: no hardcoded hex outside the token
+     set). Reusing --live / --danger rather than inventing a second
+     "ok" green and "degraded" red. #}
   <style>
-    :root { color-scheme: light dark; }
+    :root {
+      color-scheme: light dark;
+      --ink: #111827;
+      --muted: #6b7280;
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --border: #e5e7eb;
+      --live: #10b981;
+      --danger: #ef4444;
+      --radius: 12px;
+      --font-body: "Inter", "Geist", "SF Pro Text", system-ui, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+    }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: var(--font-body);
       max-width: 480px;
       margin: 80px auto;
       padding: 0 20px;
-      color: #1a1a1a;
-      background: #fafafa;
+      color: var(--ink);
+      background: var(--bg);
     }
     .card {
-      border: 1px solid #e2e2e2;
-      border-radius: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       padding: 28px;
-      background: #fff;
+      background: var(--surface);
       text-align: center;
     }
     .dot {
@@ -28,15 +49,16 @@
       border-radius: 50%;
       margin-right: 8px;
     }
-    .dot.ok { background: #2e7d32; }
-    .dot.degraded { background: #c0392b; }
+    .dot.ok { background: var(--live); }
+    .dot.degraded { background: var(--danger); }
     h1 { font-size: 18px; margin: 0 0 4px; }
     .row {
       display: flex;
       justify-content: space-between;
       padding: 10px 0;
-      border-top: 1px solid #eee;
+      border-top: 1px solid var(--border);
       font-size: 14px;
+      font-family: var(--font-mono);
     }
     .row:first-of-type { border-top: none; margin-top: 16px; }
   </style>

@@ -1,45 +1,80 @@
-/* ---- Design tokens (v2 — enterprise/luxury refresh) --------------------
+/* ---- Design tokens (v3 — premium enterprise refresh) --------------------
+   Source of truth: static/css/chat.css (see docs/DESIGN_SYSTEM.md). This
+   file must stay byte-for-byte in sync with that file's :root block —
+   both the chat widget and the admin console import this file, so it's
+   the single seam that keeps every screen on one palette. If chat.css's
+   tokens ever change, update both here and there in the same commit.
+
    --accent / --accent-ink / --accent-soft keep the exact same three
    variable names the backend already injects per-tenant (see
    templates/chat.html's inline <style> block, sourced from
    app/core/theme.py's derive_palette()). That seam is untouched — only
-   the surrounding neutral palette, type, and radii change here. The
-   values below are the fallback used before that inline override loads
-   (and during local dev of this frontend). */
+   the values below are the fallback used before that inline override
+   loads (and during local dev of this frontend). */
 :root {
-  --ink: #15171b;
-  --muted: #6c7178;
-  --muted-soft: #9a9da3;
-  --bg: #f6f5f2;
+  --ink: #111827;
+  --muted: #6b7280;
+  --muted-soft: #9ca3af;
+  --bg: #fafafa;
   --surface: #ffffff;
-  --surface-alt: #f1efe9;
-  --border: #e7e3db;
-  --border-strong: #d8d3c7;
+  --surface-alt: #f5f6f8;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
 
-  --accent: #0e7c66;
-  --accent-ink: #0b5f4f;
-  --accent-soft: #dcefe9;
+  --accent: #2563eb;
+  --accent-ink: #1d4ed8;
+  --accent-soft: #eaf1fd;
 
-  --live: #22c55e;
-  --danger: #9c2b25;
+  --live: #10b981;
+  --danger: #ef4444;
   --danger-bg: #fdecec;
-  --danger-border: #f3c6c4;
-  --warning: #8a5a12;
-  --warning-bg: #fbf0dc;
-  --warning-border: #eeddb2;
+  --danger-border: #f7c9c9;
+  --warning: #f59e0b;
+  --warning-bg: #fdf3df;
+  --warning-border: #f2ddab;
 
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --font-body: "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+  --font-display: "Inter", "Geist", "SF Pro Text", system-ui, -apple-system, sans-serif;
+  --font-body: "Inter", "Geist", "SF Pro Text", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
 
-  --radius-lg: 22px;
-  --radius-md: 16px;
-  --radius-sm: 10px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
 
-  --shadow-elevated: 0 1px 1px rgba(21, 23, 27, 0.03), 0 20px 48px -24px rgba(21, 23, 27, 0.28);
-  --shadow-card: 0 1px 2px rgba(21, 23, 27, 0.05);
+  --shadow-elevated: 0 8px 24px rgba(17, 24, 39, 0.10);
+  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.04);
+  --shadow-soft: 0 2px 8px rgba(17, 24, 39, 0.06);
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Dark mode — mirrors chat.css's [data-theme="dark"] block exactly so a
+   future toggle (see DESIGN_SYSTEM.md — not wired to a UI control yet)
+   works identically on every screen the moment it's turned on, instead
+   of needing a second implementation here. */
+[data-theme="dark"] {
+  --ink: #f3f4f6;
+  --muted: #a1a8b3;
+  --muted-soft: #7d8590;
+  --bg: #0f1115;
+  --surface: #171c26;
+  --surface-alt: #1f2633;
+  --border: #293241;
+  --border-strong: #344055;
+
+  --accent: #4f8bff;
+  --accent-ink: #79a7ff;
+  --accent-soft: #1c2c4d;
+
+  --live: #34d399;
+  --danger: #f87171;
+  --danger-bg: #3a1e20;
+  --danger-border: #5c2a2d;
+
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.44);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.32);
 }
 
 * { box-sizing: border-box; }
