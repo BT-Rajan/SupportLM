@@ -82,7 +82,7 @@
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius);
   box-shadow: var(--shadow-card);
   padding: 22px 24px;
   margin-bottom: 20px;

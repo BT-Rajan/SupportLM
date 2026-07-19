@@ -85,7 +85,7 @@ function formatTime(date) {
 
 .msg {
   padding: 11px 14px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius);
   font-size: 14.5px;
   line-height: 1.55;
   white-space: pre-wrap;

@@ -6,7 +6,17 @@ extend this file if a component is missing — they don't invent one-off
 styles inline. Goal: the product should feel like it was built by one
 team with one set of rules, not a collection of per-page experiments.
 
-## Tokens (source of truth: `static/css/chat.css`)
+## Tokens (source of truth: `frontend/src/styles/tokens.css`)
+
+Both the chat widget and the admin console are Vue builds now (see
+"Admin console" section below — the customer-facing chat widget went
+through the same "built but never wired in" bug the admin console once
+had; both are fixed now, and the pre-Vue `static/css/chat.css` /
+`static/js/chat.js` have been removed rather than left as unreferenced
+dead code). `tokens.css` is imported by both `main.js` and
+`admin-main.js`, so it's the one file that has to change to move every
+screen's palette at once — don't let it drift from what's actually
+shipped in `static/dist/*.css` again.
 
 v3 — premium enterprise refresh (previously an emerald/Fraunces
 "luxury" palette; before that, an unfollowed system-ui/indigo baseline
